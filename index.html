@@ -96,7 +96,7 @@ ${originalContent}
 
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        config: {
+        generationConfig: { // Changed from config to generationConfig
             temperature: 0.6,
             topP: 0.95,
             topK: 40,
@@ -155,7 +155,7 @@ ${content}
 
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        config: {
+        generationConfig: { // Changed from config to generationConfig
           responseMimeType: "application/json",
           temperature: 0.4,
           topP: 0.9,
