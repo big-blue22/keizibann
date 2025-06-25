@@ -1,0 +1,919 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Tech Share Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-slate-100">
+  <div id="root"></div>
+  <script type="module">
+    import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
+    import ReactDOM from 'react-dom/client';
+    import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+
+    // --- Start of constants.ts content ---
+    const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-04-17';
+    const APP_TITLE = "AI技術共有ハブ";
+
+    const MAX_SUMMARY_LENGTH = 2000; // Max characters for tweet summary input
+    const MAX_URL_LENGTH = 500; // Max characters for URL input
+
+    const POPULAR_AI_LABELS_SUGGESTIONS = [
+      "大規模言語モデル (LLM)",
+      "画像生成AI",
+      "AI倫理",
+      "強化学習",
+      "自然言語処理 (NLP)",
+      "コンピュータビジョン",
+      "医療におけるAI",
+      "芸術におけるAI",
+      "自動運転",
+      "ロボティクス",
+      "生成AI",
+      "説明可能なAI (XAI)"
+    ];
+    // --- End of constants.ts content ---
+
+    // --- Start of types.ts content ---
+    // interface Post, AppView, GroundingChunk implicitly defined by usage or as types in function signatures.
+    // Explicit interface definitions if needed for clarity or complex structures:
+    /*
+    interface Post {
+      id: string;
+      url: string;
+      summary: string;
+      labels: string[];
+      timestamp: Date;
+    }
+
+    interface GroundingChunk {
+      web?: {
+        uri: string;
+        title: string;
+      };
+    }
+    type AppView = 'list' | 'create'; // Defined in App.tsx originally
+    */
+    // --- End of types.ts content ---
+
+    // --- Start of services/geminiService.ts content ---
+    const apiKey = process.env.API_KEY;
+
+    if (!apiKey) {
+      console.error("致命的: GeminiサービスのAPI_KEY環境変数が設定されていません。");
+    }
+
+    const ai = new GoogleGenAI({ apiKey: apiKey }); 
+
+    const refineOriginalContent = async (originalContent) => {
+      if (!apiKey) {
+        throw new Error("Gemini APIキーが設定されていません。内容を推敲できません。");
+      }
+
+      const prompt = `
+あなたは、ソーシャルメディアの投稿を洗練させるプロの編集者です。以下の日本語のテキスト（ユーザーが入力したXの投稿の原文）を受け取り、その主要な意味やニュアンスを保持しつつ、より簡潔で分かりやすい文章に要約または推敲してください。
+目的は、他のユーザーが内容を素早く理解できるようにすることです。
+
+指示：
+- 結果は自然な日本語のテキストとして返してください。
+- 元の投稿の意図を正確に捉えてください。
+- 不必要な繰り返しや冗長な表現を削除してください。
+- 専門用語が使われている場合は、より平易な言葉に置き換えるか、文脈から理解できるようにしてください。ただし、元の意味が変わらない範囲で。
+- 元の内容が既に非常に短い（例：50文字以下）場合や明確である場合は、無理に要約せず、その旨を伝えるか、最小限の調整（例：誤字脱字の修正、句読点の調整）に留めてください。その場合は「元の内容のまま、または微調整しました：[元の内容または微調整後の内容]」のように返してください。
+- 文体は、元の投稿の雰囲気をできるだけ尊重しつつ、一般的に読みやすいものにしてください。
+- マークダウンやJSONフォーマットは使用せず、プレーンなテキストで応答してください。
+
+元の投稿 本文：
+---
+${originalContent}
+---
+
+推敲後の内容：
+      `;
+
+      try {
+        const response = await ai.models.generateContent({
+          model: GEMINI_TEXT_MODEL,
+          contents: prompt,
+          config: {
+            temperature: 0.6, 
+            topP: 0.95,
+            topK: 40,
+          }
+        });
+        
+        const refinedText = response.text;
+
+        if (!refinedText || refinedText.trim() === "") {
+            console.warn("Geminiからの推敲結果が空です。原文を返します。");
+            return originalContent;
+        }
+        
+        return refinedText.trim();
+
+      } catch (error) {
+        console.error("Gemini API (refineOriginalContent) の呼び出し中にエラーが発生しました:", error);
+        if (error instanceof Error) {
+            if (error.message.includes("API key not valid")) {
+                 throw new Error("無効なGemini APIキーです。設定を確認してください。");
+            }
+             throw new Error(`Gemini APIエラー (内容推敲中): ${error.message}`);
+        }
+        throw new Error("Geminiで内容を推敲中に不明なエラーが発生しました。");
+      }
+    };
+
+    const analyzeContentForLabels = async (content) => {
+      if (!apiKey) {
+        throw new Error("Gemini APIキーが設定されていません。コンテンツを分析できません。");
+      }
+      
+      const prompt = `
+あなたは熟練したAIコンテンツアナリストです。以下のテキスト（AIに関連するソーシャルメディア投稿の要約または本文）に基づいて、関連するカテゴリラベルを特定し、日本語で提案してください。
+
+最重要指示：
+- 必ず、テキスト中で言及されている、または文脈から強く推測される主要なAIモデル名を少なくとも1つ特定し、ラベルに含めてください。例：「GPT-4」、「DALL-E 3」、「Gemini Pro」、「Claude 3 Opus」、「Stable Diffusion」、「Sora」。
+- もし特定のAIモデル名が本文中に一切見当たらず、文脈からも強く推測できない場合は、「特定モデルなし」というラベルを必ず含めてください。
+
+その他の指示：
+- 上記の必須のAIモデル名ラベル（または「特定モデルなし」ラベル）に加えて、以下の種類のラベルを2～4個選択して含めてください。これにより、合計で3～5個のラベルになるようにしてください：
+  1. 一般的なAIトピック（例：「大規模言語モデル」、「画像生成AI」、「AI倫理」、「強化学習」、「自然言語処理」）。
+  2. 識別可能な応用分野（例：「医療におけるAI」、「芸術におけるAI」、「自動運転」、「金融におけるAI」）。
+  3. 関連する重要な概念や技術的キーワード（例：「プロンプトエンジニアリング」、「AGI」、「シンギュラリティ」、「AIの安全性」、「LoRA」、「ファインチューニング」）。
+- 全体で合計3～5個のユニークな日本語の文字列のJSON配列として返してください。各ラベルは簡潔にしてください。
+- 返すJSON配列の例：["GPT-4", "大規模言語モデル", "AI倫理", "プロンプトエンジニアリング"] または ["特定モデルなし", "画像生成AI", "芸術におけるAI"]
+
+分析するコンテンツ：
+---
+${content}
+---
+
+提案ラベル (JSON配列形式)：
+      `;
+
+      try {
+        const response = await ai.models.generateContent({
+          model: GEMINI_TEXT_MODEL,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.4, 
+            topP: 0.9,
+            topK: 30,
+          }
+        });
+
+        let jsonStr = response.text.trim();
+        const fenceRegex = /^\`\`\`(\w*)?\s*\n?(.*?)\n?\s*\`\`\`$/s; 
+        const match = jsonStr.match(fenceRegex);
+        if (match && match[2]) {
+          jsonStr = match[2].trim();
+        }
+        
+        const parsedData = JSON.parse(jsonStr);
+
+        if (Array.isArray(parsedData) && parsedData.every(item => typeof item === 'string')) {
+          if (parsedData.length === 0) {
+            return ["特定モデルなし", "一般AIトピック"];
+          }
+          return parsedData;
+        } else {
+          console.warn("Geminiの応答は有効な文字列の配列ではありませんでした (analyzeContentForLabels):", parsedData);
+          return ["特定モデルなし", "解析エラー"]; 
+        }
+
+      } catch (error) {
+        console.error("Gemini API (analyzeContentForLabels) の呼び出しまたは応答の解析中にエラーが発生しました:", error);
+        if (error instanceof Error) {
+            if (error.message.includes("API key not valid")) {
+                 throw new Error("無効なGemini APIキーです。設定を確認してください。");
+            }
+             throw new Error(`Gemini APIエラー (ラベル分析中): ${error.message}`);
+        }
+        throw new Error("Geminiでコンテンツを分析中に不明なエラーが発生しました。");
+      }
+    };
+    // --- End of services/geminiService.ts content ---
+
+    // --- Start of components ---
+    const LoadingSpinner = ({ size = 'md', color = 'text-purple-400' }) => {
+      const sizeClasses = {
+        sm: 'w-4 h-4 border-2',
+        md: 'w-8 h-8 border-4',
+        lg: 'w-12 h-12 border-[6px]',
+      };
+
+      return (
+        React.createElement('div', { 
+          className: `animate-spin rounded-full ${sizeClasses[size]} border-t-transparent ${color}`, 
+          role: "status" 
+        },
+          React.createElement('span', { className: "sr-only" }, "Loading...")
+        )
+      );
+    };
+
+    const Tag = ({ label, isSelected, isSuggestedByAI, onClick, isStatic = false, aiSuggestionTooltip = "AI Suggestion" }) => {
+      const baseClasses = "px-3 py-1 text-xs font-medium rounded-full transition-all duration-150 ease-in-out";
+      let dynamicClasses = "";
+
+      if (isStatic) {
+        dynamicClasses = "bg-slate-700 text-slate-300";
+      } else {
+        if (isSelected) {
+          dynamicClasses = "bg-purple-600 text-white ring-2 ring-purple-400 shadow-md";
+        } else if (isSuggestedByAI) {
+          dynamicClasses = "bg-teal-600/70 text-teal-100 hover:bg-teal-500/80 border border-teal-500";
+        } else {
+          dynamicClasses = "bg-slate-600 text-slate-300 hover:bg-slate-500";
+        }
+      }
+
+      if (onClick && !isStatic) {
+        return (
+          React.createElement('button', {
+            type: "button",
+            onClick: onClick,
+            className: `${baseClasses} ${dynamicClasses} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-purple-500`,
+            'aria-label': `Select or deselect label: ${label}${isSuggestedByAI ? ' (AI Suggested)' : ''}`
+          },
+            isSuggestedByAI && !isSelected && React.createElement('span', { title: aiSuggestionTooltip, className: "mr-1.5" }, "✨"),
+            label
+          )
+        );
+      }
+
+      return (
+        React.createElement('span', { className: `${baseClasses} ${dynamicClasses}` },
+          label
+        )
+      );
+    };
+
+    const AdminLoginModal = ({ onAttemptLogin, onClose }) => {
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState(null);
+      const [isLoading, setIsLoading] = useState(false);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+        
+        setTimeout(() => {
+          const loginSuccess = onAttemptLogin(password);
+          setIsLoading(false);
+          if (!loginSuccess) {
+            setError("パスワードが正しくありません。");
+            setPassword(''); 
+          }
+        }, 500); 
+      };
+
+      return (
+        React.createElement('div', {
+          className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]",
+          onClick: onClose,
+          'aria-modal': "true",
+          role: "dialog",
+          'aria-labelledby': "admin-login-title"
+        },
+          React.createElement('div', {
+            className: "bg-slate-800 p-6 md:p-8 rounded-xl shadow-2xl border border-slate-700 w-full max-w-md mx-4",
+            onClick: (e) => e.stopPropagation()
+          },
+            React.createElement('div', { className: "flex justify-between items-center mb-6" },
+              React.createElement('h2', { id: "admin-login-title", className: "text-xl font-semibold text-purple-400" }, "管理者ログイン"),
+              React.createElement('button', {
+                onClick: onClose,
+                className: "text-slate-400 hover:text-slate-200 transition-colors",
+                'aria-label': "閉じる"
+              },
+                React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-7 h-7" },
+                  React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18 18 6M6 6l12 12" })
+                )
+              )
+            ),
+            error && React.createElement('p', { className: "text-red-400 bg-red-900/30 p-3 rounded-md text-sm mb-4", role: "alert" }, error),
+            React.createElement('form', { onSubmit: handleSubmit, className: "space-y-6" },
+              React.createElement('div', null,
+                React.createElement('label', { htmlFor: "admin-password", className: "block text-sm font-medium text-slate-300 mb-1" }, "パスワード"),
+                React.createElement('input', {
+                  type: "password",
+                  id: "admin-password",
+                  value: password,
+                  onChange: (e) => setPassword(e.target.value),
+                  required: true,
+                  className: "w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none placeholder-slate-500",
+                  'aria-describedby': error ? "admin-password-error" : undefined
+                }),
+                error && React.createElement('p', { id: "admin-password-error", className: "sr-only" }, error)
+              ),
+              React.createElement('button', {
+                type: "submit",
+                disabled: isLoading || !password.trim(),
+                className: "w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-md"
+              },
+                isLoading ? React.createElement(LoadingSpinner, { size: "sm" }) : (
+                  React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-2" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" })
+                  )
+                ),
+                isLoading ? '確認中...' : 'ログイン'
+              )
+            )
+          )
+        )
+      );
+    };
+
+    const Header = ({ currentView, onNavigate, isAdminMode, onRequestAdminLogin, onLogoutAdmin }) => {
+      const linkBaseClasses = "px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ease-in-out";
+      const activeLinkClasses = "bg-purple-600 text-white";
+      const inactiveLinkClasses = "text-slate-300 hover:bg-slate-700 hover:text-white";
+      const adminButtonBaseClasses = "px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ease-in-out";
+
+      return (
+        React.createElement('header', { className: "bg-slate-800/50 shadow-lg backdrop-blur-md sticky top-0 z-50" },
+          React.createElement('div', { className: "container mx-auto px-4 py-4" },
+            React.createElement('div', { className: "flex flex-col sm:flex-row items-center justify-between" },
+              React.createElement('div', { className: "flex items-center space-x-3 mb-3 sm:mb-0" },
+                React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-10 h-10 text-purple-400" },
+                  React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-7.5h7.5" })
+                ),
+                React.createElement('div', null,
+                  React.createElement('h1', { className: "text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500" }, APP_TITLE),
+                  React.createElement('p', { className: "text-xs sm:text-sm text-slate-400 mt-0 sm:mt-1" }, "AIイノベーションを共有、発見、議論する")
+                )
+              ),
+              React.createElement('nav', { className: "flex space-x-2 sm:space-x-4 items-center" },
+                React.createElement('button', {
+                  onClick: () => onNavigate('list'),
+                  className: `${linkBaseClasses} ${currentView === 'list' ? activeLinkClasses : inactiveLinkClasses}`,
+                  'aria-current': currentView === 'list' ? 'page' : undefined
+                },
+                  React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-1.5 inline-block" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" })
+                  ),
+                  "投稿一覧"
+                ),
+                React.createElement('button', {
+                  onClick: () => onNavigate('create'),
+                  className: `${linkBaseClasses} ${currentView === 'create' ? activeLinkClasses : inactiveLinkClasses}`,
+                  'aria-current': currentView === 'create' ? 'page' : undefined
+                },
+                  React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-1.5 inline-block" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 4.5v15m7.5-7.5h-15" })
+                  ),
+                  "新規投稿作成"
+                ),
+                isAdminMode ? (
+                  React.createElement('button', {
+                    onClick: onLogoutAdmin,
+                    className: `${adminButtonBaseClasses} bg-red-600 hover:bg-red-700 text-white`
+                  },
+                    React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-1.5 inline-block" },
+                      React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" })
+                    ),
+                    "管理者モード終了"
+                  )
+                ) : (
+                  React.createElement('button', {
+                    onClick: onRequestAdminLogin,
+                    className: `${adminButtonBaseClasses} bg-amber-500 hover:bg-amber-600 text-white`
+                  },
+                    React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-1.5 inline-block" },
+                      React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" })
+                    ),
+                    "管理者モード"
+                  )
+                )
+              )
+            ),
+            isAdminMode && (
+              React.createElement('div', { className: "mt-2 text-center bg-green-600/30 text-green-300 py-1.5 px-3 rounded-md text-xs font-semibold" },
+                "管理者モードが有効です。投稿の削除が可能です。"
+              )
+            )
+          )
+        )
+      );
+    };
+
+    const Footer = () => {
+      return (
+        React.createElement('footer', { className: "bg-slate-800/30 text-center py-6 border-t border-slate-700" },
+          React.createElement('p', { className: "text-sm text-slate-400" },
+            `© ${new Date().getFullYear()} ${APP_TITLE}. 無断複写・転載を禁じます。`
+          ),
+          React.createElement('p', { className: "text-xs text-slate-500 mt-1" },
+            "React、Tailwind CSS、Gemini API を利用して構築されています。"
+          )
+        )
+      );
+    };
+
+    const PostCard = ({ post, isAdminMode, onDelete }) => {
+      const TimeAgo = ({ date }) => {
+        const [timeAgo, setTimeAgo] = useState('');
+
+        useEffect(() => {
+          const update = () => {
+            const now = new Date();
+            const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+            
+            if (seconds < 0) { 
+              setTimeAgo("たった今");
+              return;
+            }
+            if (seconds < 60) {
+              setTimeAgo(seconds + "秒前");
+              return;
+            }
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) {
+              setTimeAgo(minutes + "分前");
+              return;
+            }
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) {
+              setTimeAgo(hours + "時間前");
+              return;
+            }
+            const days = Math.floor(hours / 24);
+            if (days < 30) { 
+              setTimeAgo(days + "日前");
+              return;
+            }
+            const months = Math.floor(days / 30);
+            if (months < 12) {
+              setTimeAgo(months + "ヶ月前");
+              return;
+            }
+            const years = Math.floor(days / 365);
+            setTimeAgo(years + "年前");
+          };
+
+          update();
+          const timer = setInterval(update, 60000); 
+          return () => clearInterval(timer);
+        }, [date]);
+
+        return React.createElement('span', { className: "text-xs text-slate-500" }, timeAgo);
+      };
+
+      return (
+        React.createElement('article', { className: "bg-slate-800 rounded-lg shadow-xl overflow-hidden border border-slate-700 hover:border-purple-500 transition-all duration-300 ease-in-out transform hover:scale-[1.01]" },
+          React.createElement('div', { className: "p-5 md:p-6" },
+            React.createElement('div', { className: "flex justify-between items-start mb-3" },
+              React.createElement('a', {
+                href: post.url,
+                target: "_blank",
+                rel: "noopener noreferrer",
+                className: "text-sm text-purple-400 hover:text-purple-300 hover:underline break-all flex items-center flex-grow mr-2"
+              },
+                React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-4 h-4 mr-1.5 flex-shrink-0" },
+                  React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" })
+                ),
+                post.url
+              ),
+              isAdminMode && (
+                React.createElement('button', {
+                  onClick: () => onDelete(post.id),
+                  className: "ml-auto flex-shrink-0 px-2.5 py-1.5 text-xs font-medium text-red-300 bg-red-700 hover:bg-red-600 rounded-md shadow-sm transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75",
+                  'aria-label': `投稿「${post.summary.substring(0,20)}...」を削除`
+                },
+                  React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-4 h-4 mr-1 inline-block" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.24.032 3.22.094m7.094-3.56c-.094.061-.192.114-.29.166M8.25 15h7.5" })
+                  ),
+                  "削除"
+                )
+              )
+            ),
+            React.createElement('p', { className: "text-slate-300 leading-relaxed mb-4 whitespace-pre-wrap" }, post.summary),
+            React.createElement('div', { className: "flex flex-wrap gap-2 mb-4" },
+              post.labels.map(label => React.createElement(Tag, { key: label, label: label, isStatic: true }))
+            ),
+            React.createElement(TimeAgo, { date: post.timestamp })
+          )
+        )
+      );
+    };
+    
+    const PostList = ({ posts, isAdminMode, onDeletePost }) => {
+      if (posts.length === 0) {
+        return null;
+      }
+
+      return (
+        React.createElement('div', { className: "space-y-8" },
+          posts.map(post => React.createElement(PostCard, {
+            key: post.id,
+            post: post,
+            isAdminMode: isAdminMode,
+            onDelete: onDeletePost
+          }))
+        )
+      );
+    };
+
+    const LabelCloud = ({ uniqueLabels, activeFilter, onLabelSelect }) => {
+      if (uniqueLabels.length === 0) {
+        return null;
+      }
+
+      const baseButtonClasses = "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-150 ease-in-out shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-opacity-50";
+      const activeLabelClasses = "bg-purple-600 text-white ring-2 ring-purple-400";
+      const inactiveLabelClasses = "bg-slate-700 text-slate-300 hover:bg-slate-600 focus:ring-slate-500";
+      const showAllClasses = "bg-sky-600 text-white hover:bg-sky-500 focus:ring-sky-400";
+
+      return (
+        React.createElement('div', { className: "mb-8 p-4 bg-slate-800/60 rounded-lg shadow-lg border border-slate-700" },
+          React.createElement('h3', { className: "text-sm font-semibold text-slate-300 mb-3 tracking-wide" }, "ラベルで絞り込み:"),
+          React.createElement('div', { className: "flex flex-wrap gap-2 items-center" },
+            React.createElement('button', {
+              onClick: () => onLabelSelect(null),
+              className: `${baseButtonClasses} ${!activeFilter ? `${showAllClasses} ring-2 ring-sky-300` : `${inactiveLabelClasses} opacity-80 hover:opacity-100`}`,
+              'aria-pressed': !activeFilter
+            }, "すべての投稿を表示"),
+            uniqueLabels.map(label => (
+              React.createElement('button', {
+                key: label,
+                onClick: () => onLabelSelect(label),
+                className: `${baseButtonClasses} ${activeFilter === label ? activeLabelClasses : inactiveLabelClasses}`,
+                'aria-pressed': activeFilter === label
+              }, label)
+            ))
+          )
+        )
+      );
+    };
+
+    const PostForm = ({ onAddPost }) => {
+      const [tweetUrl, setTweetUrl] = useState('');
+      const [tweetOriginalContent, setTweetOriginalContent] = useState('');
+      const [tweetSummary, setTweetSummary] = useState('');
+      
+      const [isAnalyzingLabels, setIsAnalyzingLabels] = useState(false);
+      const [isRefiningContent, setIsRefiningContent] = useState(false);
+      
+      const [error, setError] = useState(null);
+      const [successMessage, setSuccessMessage] = useState(null);
+
+      const clearMessages = useCallback(() => {
+        setError(null);
+        setSuccessMessage(null);
+      },[]);
+
+      useEffect(() => {
+        if (error || successMessage) {
+          const timer = setTimeout(() => {
+            clearMessages();
+          }, 5000);
+          return () => clearTimeout(timer);
+        }
+      }, [error, successMessage, clearMessages]);
+
+      const handleRefineContent = useCallback(async () => {
+        if (!tweetOriginalContent.trim()) {
+          setError('AIによる推敲のためには、まず「Xの投稿 本文」を入力してください。');
+          return;
+        }
+        clearMessages();
+        setIsRefiningContent(true);
+        try {
+          const refinedContent = await refineOriginalContent(tweetOriginalContent);
+          setTweetSummary(refinedContent);
+          setSuccessMessage('AIが内容を整えました。ご確認ください。');
+        } catch (err) {
+          console.error("Error refining content:", err);
+          setError(err instanceof Error ? err.message : '内容の推敲に失敗しました。');
+          setTweetSummary(tweetOriginalContent); 
+        } finally {
+          setIsRefiningContent(false);
+        }
+      }, [tweetOriginalContent, clearMessages]);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        clearMessages();
+        if (!tweetUrl.trim() || !tweetSummary.trim()) {
+          setError('Xの投稿URLと「共有する内容」は必須です。');
+          return;
+        }
+        
+        setIsAnalyzingLabels(true);
+        let generatedLabels = [];
+        try {
+          generatedLabels = await analyzeContentForLabels(tweetSummary);
+          if (generatedLabels.length === 0) {
+            generatedLabels = ["特定モデルなし", "一般AIトピック"]; 
+            setSuccessMessage('AIによるラベルの自動生成で予期せぬ結果となりましたが、デフォルトラベルを付与しました。');
+          } else {
+            setSuccessMessage('投稿内容を分析し、ラベルを自動生成しました。');
+          }
+        } catch (err) {
+          console.error("Error analyzing content for labels during submit:", err);
+          setError(err instanceof Error ? err.message : 'コンテンツのラベル分析に失敗しました。');
+          setIsAnalyzingLabels(false);
+          return;
+        } 
+        
+        try {
+          onAddPost({ url: tweetUrl, summary: tweetSummary, labels: generatedLabels });
+          setTweetUrl('');
+          setTweetOriginalContent('');
+          setTweetSummary('');
+          setSuccessMessage('投稿が正常に追加されました！まもなく一覧にリダイレクトされます。');
+        } catch (postError) {
+           console.error("Error adding post:", postError);
+           setError("投稿の追加に失敗しました。しばらくしてから再度お試しください。");
+        } finally {
+          setIsAnalyzingLabels(false);
+        }
+      };
+
+      return (
+        React.createElement('form', { onSubmit: handleSubmit, className: "p-6 md:p-8 bg-slate-800 rounded-xl shadow-2xl space-y-6 mb-12 border border-slate-700" },
+          React.createElement('h2', { className: "text-2xl font-semibold text-purple-400 mb-1" }, "AI関連の発見を共有"),
+          React.createElement('p', { className: "text-sm text-slate-400 mb-6" }, "X (旧Twitter) の投稿URL、本文 (任意) を入力してください。AIが内容を分析し、自動でラベルを付与します。"),
+          error && React.createElement('p', { className: "text-red-400 bg-red-900/30 p-3 rounded-md text-sm mb-4", role: "alert" }, error),
+          successMessage && React.createElement('p', { className: "text-green-400 bg-green-900/30 p-3 rounded-md text-sm mb-4", role: "status" }, successMessage),
+          React.createElement('div', null,
+            React.createElement('label', { htmlFor: "tweetUrl", className: "block text-sm font-medium text-slate-300 mb-1" },
+              "X (旧Twitter) 投稿URL ", React.createElement('span', { className: "text-red-400" }, "*")
+            ),
+            React.createElement('input', {
+              type: "url",
+              id: "tweetUrl",
+              value: tweetUrl,
+              onChange: (e) => { setTweetUrl(e.target.value); clearMessages(); },
+              placeholder: "https://x.com/username/status/12345",
+              required: true,
+              maxLength: MAX_URL_LENGTH,
+              className: "w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none placeholder-slate-500",
+              'aria-required': "true"
+            })
+          ),
+          React.createElement('div', null,
+            React.createElement('label', { htmlFor: "tweetOriginalContent", className: "block text-sm font-medium text-slate-300 mb-1" }, "Xの投稿 本文 (任意)"),
+            React.createElement('textarea', {
+              id: "tweetOriginalContent",
+              value: tweetOriginalContent,
+              onChange: (e) => {setTweetOriginalContent(e.target.value); clearMessages();},
+              placeholder: "Xの投稿の原文をここに貼り付けてください。AIが内容を要約・推敲する際に使用します。",
+              rows: 3,
+              maxLength: MAX_SUMMARY_LENGTH,
+              className: "w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none placeholder-slate-500"
+            }),
+            React.createElement('div', { className: "flex justify-between items-center mt-1" },
+              React.createElement('p', { className: "text-xs text-slate-500", 'aria-live': "polite" }, `${tweetOriginalContent.length}/${MAX_SUMMARY_LENGTH} 文字`),
+              React.createElement('button', {
+                type: "button",
+                onClick: handleRefineContent,
+                disabled: isRefiningContent || !tweetOriginalContent.trim(),
+                className: "px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-opacity-50 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              },
+                isRefiningContent ? React.createElement(LoadingSpinner, { size: "sm" }) : (
+                  React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-4 h-4 mr-1.5" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" })
+                  )
+                ),
+                isRefiningContent ? '処理中...' : 'AIに内容を整えてもらう'
+              )
+            )
+          ),
+          React.createElement('div', null,
+            React.createElement('label', { htmlFor: "tweetSummary", className: "block text-sm font-medium text-slate-300 mb-1" },
+              "共有する内容 / AIによる提案 ", React.createElement('span', { className: "text-red-400" }, "*")
+            ),
+            React.createElement('textarea', {
+              id: "tweetSummary",
+              value: tweetSummary,
+              onChange: (e) => {setTweetSummary(e.target.value); clearMessages();},
+              placeholder: "AIによる要約/推敲結果がここに表示されます。内容は自由に編集可能です。または、原文がない場合はここに直接内容を入力してください。",
+              required: true,
+              rows: 4,
+              maxLength: MAX_SUMMARY_LENGTH,
+              className: "w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none placeholder-slate-500",
+              'aria-required': "true"
+            }),
+            React.createElement('p', { className: "text-xs text-slate-500 mt-1", 'aria-live': "polite" }, `${tweetSummary.length}/${MAX_SUMMARY_LENGTH} 文字`)
+          ),
+          React.createElement('button', {
+            type: "submit",
+            disabled: isAnalyzingLabels || isRefiningContent || !tweetUrl.trim() || !tweetSummary.trim(),
+            className: "w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-lg"
+          },
+            isAnalyzingLabels ? React.createElement(LoadingSpinner, { size: "md" }) : (
+              React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-6 h-6 mr-2" },
+                React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 4.5v15m7.5-7.5h-15" })
+              )
+            ),
+            isAnalyzingLabels ? 'AIがラベル分析中...' : '投稿する'
+          )
+        )
+      );
+    };
+    // --- End of components ---
+
+    // --- Start of pages ---
+    const CreatePostPage = ({ onAddPost }) => {
+      return React.createElement(PostForm, { onAddPost: onAddPost });
+    };
+
+    const ViewPostsPage = ({ 
+      allPosts, 
+      filteredPosts, 
+      activeLabelFilter, 
+      onSetLabelFilter,
+      isAdminMode,
+      onDeletePost
+    }) => {
+      const uniqueLabels = useMemo(() => {
+        const labelSet = new Set();
+        allPosts.forEach(post => {
+          post.labels.forEach(label => labelSet.add(label));
+        });
+        const collator = new Intl.Collator('ja-JP'); 
+        return Array.from(labelSet).sort(collator.compare);
+      }, [allPosts]);
+
+      const NoPostsMessage = () => {
+        if (allPosts.length === 0) {
+          return (
+            React.createElement('div', { className: "mt-12 text-center text-slate-400 p-8 bg-slate-800/50 rounded-lg shadow-xl" },
+              React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-16 h-16 mx-auto mb-4 text-purple-400" },
+                React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25H5.625a2.25 2.25 0 0 1-2.25-2.25V6.375c0-.621.504-1.125 1.125-1.125H6.75m10.5-2.25h.008v.008h-.008v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" })
+              ),
+              React.createElement('h2', { className: "text-2xl font-semibold mb-2 text-slate-200" }, "まだ投稿がありません！"),
+              React.createElement('p', null, "AIに関する興味深い発見を最初に共有しましょう。「新規投稿作成」から始められます。")
+            )
+          );
+        }
+        if (filteredPosts.length === 0 && activeLabelFilter) {
+          return (
+            React.createElement('div', { className: "mt-8 text-center text-slate-400 p-6 bg-slate-800/50 rounded-lg shadow-md" },
+              React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-12 h-12 mx-auto mb-3 text-sky-400" },
+                React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", d: "m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" })
+              ),
+              React.createElement('h2', { className: "text-xl font-semibold mb-1 text-slate-300" }, `「${activeLabelFilter}」に一致する投稿はありません。`),
+              React.createElement('p', null, "他のラベルを試すか、「すべての投稿を表示」でフィルターを解除してください。")
+            )
+          );
+        }
+        return null;
+      };
+
+      return (
+        React.createElement(React.Fragment, null,
+          uniqueLabels.length > 0 && (
+            React.createElement(LabelCloud, {
+              uniqueLabels: uniqueLabels,
+              activeFilter: activeLabelFilter,
+              onLabelSelect: onSetLabelFilter
+            })
+          ),
+          filteredPosts.length > 0 ? (
+            React.createElement(PostList, {
+              posts: filteredPosts,
+              isAdminMode: isAdminMode,
+              onDeletePost: onDeletePost
+            })
+          ) : (
+            React.createElement(NoPostsMessage, null)
+          )
+        )
+      );
+    };
+    // --- End of pages ---
+
+    // --- Start of App.tsx content ---
+    const ADMIN_PASSWORD = "0622"; 
+
+    const App = () => {
+      const [posts, setPosts] = useState([]);
+      const [currentView, setCurrentView] = useState('list');
+      const [activeLabelFilter, setActiveLabelFilter] = useState(null);
+      const [isAdminMode, setIsAdminMode] = useState(false);
+      const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+
+      const addPost = useCallback((newPostData) => {
+        setPosts(prevPosts => [
+          { 
+            ...newPostData,
+            id: crypto.randomUUID(), 
+            timestamp: new Date(),
+          },
+          ...prevPosts
+        ]);
+        setCurrentView('list');
+        setActiveLabelFilter(null);
+      }, []);
+
+      const navigateTo = useCallback((view) => {
+        setCurrentView(view);
+      }, []);
+
+      const handleSetLabelFilter = useCallback((label) => {
+        setActiveLabelFilter(label);
+      }, []);
+
+      const filteredPosts = useMemo(() => {
+        if (!activeLabelFilter) {
+          return posts;
+        }
+        return posts.filter(post => post.labels.includes(activeLabelFilter));
+      }, [posts, activeLabelFilter]);
+
+      const handleAdminLoginAttempt = useCallback((password) => {
+        if (password === ADMIN_PASSWORD) {
+          setIsAdminMode(true);
+          setShowAdminLoginModal(false);
+          return true;
+        }
+        return false;
+      }, []);
+
+      const logoutAdmin = useCallback(() => {
+        setIsAdminMode(false);
+      }, []);
+
+      const requestAdminLogin = useCallback(() => {
+        setShowAdminLoginModal(true);
+      }, []);
+
+      const deletePost = useCallback((postId) => {
+        if (!isAdminMode) return; 
+
+        if (window.confirm("この投稿を本当に削除しますか？この操作は元に戻せません。")) {
+          setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+        }
+      }, [isAdminMode]);
+
+      return (
+        React.createElement('div', { className: "min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-slate-100 flex flex-col" },
+          React.createElement(Header, {
+            currentView: currentView,
+            onNavigate: navigateTo,
+            isAdminMode: isAdminMode,
+            onRequestAdminLogin: requestAdminLogin,
+            onLogoutAdmin: logoutAdmin
+          }),
+          React.createElement('main', { className: "container mx-auto px-4 py-8 flex-grow" },
+            React.createElement('div', { className: "max-w-3xl mx-auto" },
+              currentView === 'create' && React.createElement(CreatePostPage, { onAddPost: addPost }),
+              currentView === 'list' && (
+                React.createElement(ViewPostsPage, {
+                  allPosts: posts,
+                  filteredPosts: filteredPosts,
+                  activeLabelFilter: activeLabelFilter,
+                  onSetLabelFilter: handleSetLabelFilter,
+                  isAdminMode: isAdminMode,
+                  onDeletePost: deletePost
+                })
+              )
+            )
+          ),
+          React.createElement(Footer, null),
+          showAdminLoginModal && (
+            React.createElement(AdminLoginModal, {
+              onAttemptLogin: handleAdminLoginAttempt,
+              onClose: () => setShowAdminLoginModal(false)
+            })
+          )
+        )
+      );
+    };
+    // --- End of App.tsx content ---
+
+    // --- Start of ReactDOM rendering (from index.tsx) ---
+    const rootElement = document.getElementById('root');
+    if (!rootElement) {
+      throw new Error("Could not find root element to mount to");
+    }
+
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      React.createElement(StrictMode, null, 
+        React.createElement(App, null)
+      )
+    );
+    // --- End of ReactDOM rendering ---
+  </script>
+</body>
+</html>
