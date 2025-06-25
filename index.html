@@ -74,15 +74,22 @@
     // --- Start of services/geminiService.ts content ---
     const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : undefined;
 
+    let ai = null; // Initialize ai to null
+
     if (!apiKey) {
-      console.error("致命的: GeminiサービスのAPI_KEY環境変数が設定されていません。");
+      console.error("致命的: GeminiサービスのAPI_KEY環境変数が設定されていません。AI関連機能は利用できません。");
+    } else {
+      try {
+        ai = new GoogleGenAI({ apiKey: apiKey });
+      } catch (e) {
+        console.error("GoogleGenAI SDK の初期化中にエラーが発生しました:", e);
+        ai = null; // Ensure ai is null if initialization fails
+      }
     }
 
-    const ai = new GoogleGenAI({ apiKey: apiKey }); 
-
     const refineOriginalContent = async (originalContent) => {
-      if (!apiKey) {
-        throw new Error("Gemini APIキーが設定されていません。内容を推敲できません。");
+      if (!ai) { // Check if ai instance is available
+        throw new Error("Gemini APIキーが設定されていないか、SDKが正しく初期化されていません。内容を推敲できません。");
       }
 
       const prompt = `
@@ -139,8 +146,8 @@ ${originalContent}
     };
 
     const analyzeContentForLabels = async (content) => {
-      if (!apiKey) {
-        throw new Error("Gemini APIキーが設定されていません。コンテンツを分析できません。");
+      if (!ai) { // Check if ai instance is available
+        throw new Error("Gemini APIキーが設定されていないか、SDKが正しく初期化されていません。コンテンツを分析できません。");
       }
       
       const prompt = `
