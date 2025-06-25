@@ -11,7 +11,6 @@
 <script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
     "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
     "react/": "https://esm.sh/react@^19.1.0/",
     "react": "https://esm.sh/react@^19.1.0"
@@ -24,10 +23,10 @@
   <script type="module">
     import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
     import ReactDOM from 'react-dom/client';
-    import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+    // Removed: import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 
     // --- Start of constants.ts content ---
-    const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-04-17';
+    // Removed: const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-04-17';
     const APP_TITLE = "AI技術共有ハブ";
 
     const MAX_SUMMARY_LENGTH = 2000; // Max characters for tweet summary input
@@ -51,47 +50,29 @@
 
     // --- Start of types.ts content ---
     // interface Post, AppView, GroundingChunk implicitly defined by usage or as types in function signatures.
-    // Explicit interface definitions if needed for clarity or complex structures:
-    /*
-    interface Post {
-      id: string;
-      url: string;
-      summary: string;
-      labels: string[];
-      timestamp: Date;
-    }
-
-    interface GroundingChunk {
-      web?: {
-        uri: string;
-        title: string;
-      };
-    }
-    type AppView = 'list' | 'create'; // Defined in App.tsx originally
-    */
     // --- End of types.ts content ---
 
     // --- Start of services/geminiService.ts content ---
-    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : undefined;
+    // API Key and GoogleGenAI SDK initialization logic removed.
 
-    let ai = null; // Initialize ai to null
+    const callApiGateway = async (payload) => {
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!apiKey) {
-      console.error("致命的: GeminiサービスのAPI_KEY環境変数が設定されていません。AI関連機能は利用できません。");
-    } else {
-      try {
-        ai = new GoogleGenAI({ apiKey: apiKey });
-      } catch (e) {
-        console.error("GoogleGenAI SDK の初期化中にエラーが発生しました:", e);
-        ai = null; // Ensure ai is null if initialization fails
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("Error calling /api/gemini:", response.status, errorBody);
+        throw new Error(`API Gateway error: ${response.status} - ${errorBody}`);
       }
-    }
+      return response.json(); // Assumes serverless function returns Gemini's JSON response
+    };
 
     const refineOriginalContent = async (originalContent) => {
-      if (!ai) { // Check if ai instance is available
-        throw new Error("Gemini APIキーが設定されていないか、SDKが正しく初期化されていません。内容を推敲できません。");
-      }
-
       const prompt = `
 あなたは、ソーシャルメディアの投稿を洗練させるプロの編集者です。以下の日本語のテキスト（ユーザーが入力したXの投稿の原文）を受け取り、その主要な意味やニュアンスを保持しつつ、より簡潔で分かりやすい文章に要約または推敲してください。
 目的は、他のユーザーが内容を素早く理解できるようにすることです。
@@ -113,43 +94,42 @@ ${originalContent}
 推敲後の内容：
       `;
 
-      try {
-        const response = await ai.models.generateContent({
-          model: GEMINI_TEXT_MODEL,
-          contents: prompt,
-          config: {
-            temperature: 0.6, 
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+            temperature: 0.6,
             topP: 0.95,
             topK: 40,
+        }
+      };
+
+      try {
+        const data = await callApiGateway(payload);
+        
+        if (data.candidates && data.candidates.length > 0 &&
+            data.candidates[0].content && data.candidates[0].content.parts &&
+            data.candidates[0].content.parts.length > 0 && typeof data.candidates[0].content.parts[0].text === 'string') {
+          
+          const refinedText = data.candidates[0].content.parts[0].text;
+          if (!refinedText || refinedText.trim() === "") {
+              console.warn("サーバーからの推敲結果が空です。原文を返します。");
+              return originalContent;
           }
-        });
-        
-        const refinedText = response.text;
-
-        if (!refinedText || refinedText.trim() === "") {
-            console.warn("Geminiからの推敲結果が空です。原文を返します。");
-            return originalContent;
+          return refinedText.trim();
+        } else {
+          console.warn("サーバーからの応答形式が不正か、テキストが含まれていません (refineOriginalContent)。原文を返します。", data);
+          return originalContent; 
         }
-        
-        return refinedText.trim();
-
       } catch (error) {
-        console.error("Gemini API (refineOriginalContent) の呼び出し中にエラーが発生しました:", error);
+        console.error("サーバーAPI (refineOriginalContent) の呼び出し中にエラーが発生しました:", error);
         if (error instanceof Error) {
-            if (error.message.includes("API key not valid")) {
-                 throw new Error("無効なGemini APIキーです。設定を確認してください。");
-            }
-             throw new Error(`Gemini APIエラー (内容推敲中): ${error.message}`);
+             throw new Error(`内容推敲APIエラー: ${error.message}`);
         }
-        throw new Error("Geminiで内容を推敲中に不明なエラーが発生しました。");
+        throw new Error("内容を推敲中に不明なエラーが発生しました。");
       }
     };
 
     const analyzeContentForLabels = async (content) => {
-      if (!ai) { // Check if ai instance is available
-        throw new Error("Gemini APIキーが設定されていないか、SDKが正しく初期化されていません。コンテンツを分析できません。");
-      }
-      
       const prompt = `
 あなたは熟練したAIコンテンツアナリストです。以下のテキスト（AIに関連するソーシャルメディア投稿の要約または本文）に基づいて、関連するカテゴリラベルを特定し、日本語で提案してください。
 
@@ -173,46 +153,51 @@ ${content}
 提案ラベル (JSON配列形式)：
       `;
 
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.4,
+          topP: 0.9,
+          topK: 30,
+        }
+      };
+
       try {
-        const response = await ai.models.generateContent({
-          model: GEMINI_TEXT_MODEL,
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0.4, 
-            topP: 0.9,
-            topK: 30,
+        const data = await callApiGateway(payload);
+
+        if (data.candidates && data.candidates.length > 0 &&
+            data.candidates[0].content && data.candidates[0].content.parts &&
+            data.candidates[0].content.parts.length > 0 && typeof data.candidates[0].content.parts[0].text === 'string') {
+
+          let jsonStr = data.candidates[0].content.parts[0].text.trim();
+          const fenceRegex = /^\`\`\`(\w*)?\s*\n?(.*?)\n?\s*\`\`\`$/s; 
+          const match = jsonStr.match(fenceRegex);
+          if (match && match[2]) {
+            jsonStr = match[2].trim();
           }
-        });
+          
+          const parsedData = JSON.parse(jsonStr);
 
-        let jsonStr = response.text.trim();
-        const fenceRegex = /^\`\`\`(\w*)?\s*\n?(.*?)\n?\s*\`\`\`$/s; 
-        const match = jsonStr.match(fenceRegex);
-        if (match && match[2]) {
-          jsonStr = match[2].trim();
-        }
-        
-        const parsedData = JSON.parse(jsonStr);
-
-        if (Array.isArray(parsedData) && parsedData.every(item => typeof item === 'string')) {
-          if (parsedData.length === 0) {
-            return ["特定モデルなし", "一般AIトピック"];
-          }
-          return parsedData;
-        } else {
-          console.warn("Geminiの応答は有効な文字列の配列ではありませんでした (analyzeContentForLabels):", parsedData);
-          return ["特定モデルなし", "解析エラー"]; 
-        }
-
-      } catch (error) {
-        console.error("Gemini API (analyzeContentForLabels) の呼び出しまたは応答の解析中にエラーが発生しました:", error);
-        if (error instanceof Error) {
-            if (error.message.includes("API key not valid")) {
-                 throw new Error("無効なGemini APIキーです。設定を確認してください。");
+          if (Array.isArray(parsedData) && parsedData.every(item => typeof item === 'string')) {
+            if (parsedData.length === 0) {
+              return ["特定モデルなし", "一般AIトピック"];
             }
-             throw new Error(`Gemini APIエラー (ラベル分析中): ${error.message}`);
+            return parsedData;
+          } else {
+            console.warn("サーバーの応答は有効な文字列の配列ではありませんでした (analyzeContentForLabels):", parsedData);
+            return ["特定モデルなし", "解析エラー"]; 
+          }
+        } else {
+          console.warn("サーバーからの応答形式が不正か、テキストが含まれていません (analyzeContentForLabels)。デフォルトラベルを返します。", data);
+          return ["特定モデルなし", "解析エラー"];
         }
-        throw new Error("Geminiでコンテンツを分析中に不明なエラーが発生しました。");
+      } catch (error) {
+        console.error("サーバーAPI (analyzeContentForLabels) の呼び出しまたは応答の解析中にエラーが発生しました:", error);
+        if (error instanceof Error) {
+             throw new Error(`ラベル分析APIエラー: ${error.message}`);
+        }
+        throw new Error("コンテンツを分析中に不明なエラーが発生しました。");
       }
     };
     // --- End of services/geminiService.ts content ---
@@ -429,7 +414,7 @@ ${content}
             `© ${new Date().getFullYear()} ${APP_TITLE}. 無断複写・転載を禁じます。`
           ),
           React.createElement('p', { className: "text-xs text-slate-500 mt-1" },
-            "React、Tailwind CSS、Gemini API を利用して構築されています。"
+            "React、Tailwind CSS、バックエンドAPI を利用して構築されています。"
           )
         )
       );
