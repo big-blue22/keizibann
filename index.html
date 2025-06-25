@@ -72,7 +72,7 @@
     // --- End of types.ts content ---
 
     // --- Start of services/geminiService.ts content ---
-    const apiKey = process.env.API_KEY;
+    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : undefined;
 
     if (!apiKey) {
       console.error("致命的: GeminiサービスのAPI_KEY環境変数が設定されていません。");
