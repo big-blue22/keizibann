@@ -17,7 +17,7 @@ export default async function handler(request, response) {
     const body = request.body;
 
     // 正しいモデル名を含む、Google Gemini APIのエンドポイントURL
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     // GoogleのAPIにリクエストを転送します
     const geminiResponse = await fetch(url, {
