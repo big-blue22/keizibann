@@ -36,6 +36,38 @@ const LoadingSpinner = ({ size = 'md' }) => {
 
 const Tag = ({ label }) => React.createElement('span', { className: "px-3 py-1 text-xs font-medium rounded-full bg-slate-700 text-slate-300" }, label);
 
+// -- 管理者ログインモーダル --
+const AdminLoginModal = ({ onLogin, onClose }) => {
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+        try {
+            await onLogin(password);
+            // ログイン成功は親コンポーネントが処理するのでここでは何もしない
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return React.createElement('div', { className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]", onClick: onClose },
+        React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
+            React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
+            error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
+            React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
+                React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
+                React.createElement('button', { type: "submit", disabled: isLoading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, isLoading ? React.createElement(LoadingSpinner, {size: 'sm'}) : 'ログイン')
+            )
+        )
+    );
+};
+
 // -- 投稿フォーム (PostForm) --
 const PostForm = ({ onPostAdded }) => {
   const [url, setUrl] = useState('');
@@ -124,8 +156,12 @@ const PostForm = ({ onPostAdded }) => {
 };
 
 // -- 投稿一覧 (PostList) --
-const PostCard = ({ post }) => {
-    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700" },
+const PostCard = ({ post, isAdmin, onDelete }) => {
+    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative" },
+        isAdmin && React.createElement('button', {
+            onClick: () => onDelete(post.id),
+            className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-700 hover:bg-red-600 rounded"
+        }, "削除"),
         React.createElement('p', { className: "text-sm text-purple-400" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer" }, post.url)),
         React.createElement('p', { className: "text-slate-300 my-2" }, post.summary),
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
@@ -133,66 +169,123 @@ const PostCard = ({ post }) => {
     );
 };
 
-const PostList = ({ posts }) => {
-  // ここで投稿を新しい順にソートする
+const PostList = ({ posts, isAdmin, onDelete }) => {
   const sortedPosts = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
   return React.createElement('div', { className: "space-y-8" },
     sortedPosts.length === 0
       ? React.createElement('p', { className: "text-center text-slate-400" }, "まだ投稿はありません。")
-      : sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post }))
+      : sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete }))
   );
+};
+
+// -- ヘッダー --
+const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
+    return React.createElement('header', { className: "bg-slate-800 p-4 flex justify-between items-center" },
+        React.createElement('h1', { className: "text-3xl font-bold text-purple-400" }, APP_TITLE),
+        isAdmin
+            ? React.createElement('button', { onClick: onLogoutClick, className: "px-4 py-2 bg-red-600 text-white rounded" }, "管理者モード終了")
+            : React.createElement('button', { onClick: onLoginClick, className: "px-4 py-2 bg-amber-500 text-white rounded" }, "管理者モード")
+    );
 };
 
 // -- メインアプリケーション (App) --
 const App = () => {
-  const [posts, setPosts] = useState(null); // 初期状態をnullにしてローディング中を表現
+  const [posts, setPosts] = useState(null);
   const [error, setError] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
-  // ページ読み込み時に投稿を取得
+  // 初回にトークンを確認
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const res = await fetch('/api/get-posts');
-        if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
-        const data = await res.json();
-        setPosts(data);
-      } catch (err) {
-        setError(err.message);
-      }
-    };
+    const token = localStorage.getItem('admin-token');
+    if (token) setIsAdmin(true);
+  }, []);
+
+  // 投稿を取得
+  const fetchPosts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/get-posts');
+      if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
+      const data = await res.json();
+      setPosts(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchPosts();
-  }, []); // 空の配列で、初回の一度だけ実行
+  }, [fetchPosts]);
 
   // 新しい投稿が追加された時の処理
   const handlePostAdded = (newPost) => {
-    setPosts(currentPosts => [newPost, ...(currentPosts || [])]); // Ensure currentPosts is an array
+    setPosts(currentPosts => [newPost, ...(currentPosts || [])]); // Ensure currentPosts is an array if null initially
   };
 
+  // ログイン処理
+  const handleLogin = async (password) => {
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: 'ログインに失敗しました。詳細なエラーメッセージはありません。'})); // Provide fallback error
+        throw new Error(errData.message || 'ログインに失敗しました。');
+    }
+    const { token } = await res.json();
+    localStorage.setItem('admin-token', token);
+    setIsAdmin(true);
+    setShowLogin(false);
+  };
+
+  // ログアウト処理
+  const handleLogout = () => {
+    localStorage.removeItem('admin-token');
+    setIsAdmin(false);
+  };
+  
+  // 投稿削除処理
+  const handleDeletePost = async (postId) => {
+      if (!window.confirm("この投稿を本当に削除しますか？")) return;
+      try {
+          const token = localStorage.getItem('admin-token');
+          const res = await fetch('/api/delete-post', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ postId }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ message: '削除に失敗しました。詳細なエラーメッセージはありません。'}));
+            throw new Error(errData.message || '削除に失敗しました。');
+          }
+          // 成功したら投稿一覧を再読み込み
+          fetchPosts();
+      } catch (err) {
+          alert(err.message);
+      }
+  };
+
+
   const renderContent = () => {
-    if (error) {
-      return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
-    }
-    if (posts === null) {
-      return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
-    }
-    // ここでPostFormとPostListの両方を表示する
+    if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
+    if (posts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
     return React.createElement(React.Fragment, null,
       React.createElement('div', { className: "mb-12" }, React.createElement(PostForm, { onPostAdded: handlePostAdded })),
-      React.createElement(PostList, { posts: posts })
+      React.createElement(PostList, { posts: posts, isAdmin: isAdmin, onDelete: handleDeletePost })
     );
   };
 
   return React.createElement('div', { className: "min-h-screen bg-slate-900 text-slate-100" },
-    React.createElement('header', { className: "bg-slate-800 p-4" },
-      React.createElement('h1', { className: "text-3xl font-bold text-purple-400 text-center" }, APP_TITLE)
-    ),
+    React.createElement(Header, { isAdmin: isAdmin, onLoginClick: () => setShowLogin(true), onLogoutClick: handleLogout }),
     React.createElement('main', { className: "container mx-auto px-4 py-8" },
-      React.createElement('div', { className: "max-w-3xl mx-auto" },
-        renderContent()
-      )
+      React.createElement('div', { className: "max-w-3xl mx-auto" }, renderContent())
     ),
-    React.createElement('footer', { className: "text-center py-6 text-sm text-slate-500" }, `© ${new Date().getFullYear()} ${APP_TITLE}`)
+    React.createElement('footer', { className: "text-center py-6 text-sm text-slate-500" }, `© ${new Date().getFullYear()} ${APP_TITLE}`),
+    showLogin && React.createElement(AdminLoginModal, { onLogin: handleLogin, onClose: () => setShowLogin(false) })
   );
 };
 
