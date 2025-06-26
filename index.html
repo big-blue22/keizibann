@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +47,6 @@ const AdminLoginModal = ({ onLogin, onClose }) => {
         setIsLoading(true);
         try {
             await onLogin(password);
-            // ログイン成功は親コンポーネントが処理するのでここでは何もしない
         } catch (err) {
             setError(err.message);
         } finally {
@@ -84,7 +82,7 @@ const PostForm = ({ onPostAdded }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ originalContent }),
       });
-      if (!res.ok) throw new Error('AIによる推敲に失敗しました。');
+      if (!res.ok) { const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによる推敲に失敗しました。'); }
       const data = await res.json();
       setSummary(data.refinedText);
       setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
@@ -101,26 +99,23 @@ const PostForm = ({ onPostAdded }) => {
     }
     setStatus({ loading: true, error: null, success: null });
     try {
-      // 1. ラベルを分析
       const labelsRes = await fetch('/api/analyze-labels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: summary }),
       });
-      if (!labelsRes.ok) throw new Error('AIによるラベル分析に失敗しました。');
+      if (!labelsRes.ok) { const err = await labelsRes.json().catch(() => ({message: 'AIによるラベル分析に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによるラベル分析に失敗しました。'); }
       const { labels } = await labelsRes.json();
 
-      // 2. 投稿を作成
       const postRes = await fetch('/api/create-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, summary, labels }),
       });
-      if (!postRes.ok) throw new Error('投稿の保存に失敗しました。');
+      if (!postRes.ok) { const err = await postRes.json().catch(() => ({message: '投稿の保存に失敗しました。詳細エラー不明'})); throw new Error(err.message || '投稿の保存に失敗しました。'); }
       const { post } = await postRes.json();
 
-      // 3. 成功処理
-      onPostAdded(post); // Appコンポーネントに新しい投稿を通知
+      onPostAdded(post);
       setUrl('');
       setOriginalContent('');
       setSummary('');
@@ -155,34 +150,54 @@ const PostForm = ({ onPostAdded }) => {
   );
 };
 
-// -- 投稿一覧 (PostList) --
+// -- 投稿一覧 (PostList & PostCard) --
 const PostCard = ({ post, isAdmin, onDelete }) => {
-    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative" },
+    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
         isAdmin && React.createElement('button', {
             onClick: () => onDelete(post.id),
-            className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-700 hover:bg-red-600 rounded"
+            className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
         }, "削除"),
-        React.createElement('p', { className: "text-sm text-purple-400" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer" }, post.url)),
-        React.createElement('p', { className: "text-slate-300 my-2" }, post.summary),
+        React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }, post.url)),
+        React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
-        React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString())
+        React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP'))
     );
 };
 
 const PostList = ({ posts, isAdmin, onDelete }) => {
   const sortedPosts = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  
   return React.createElement('div', { className: "space-y-8" },
-    sortedPosts.length === 0
-      ? React.createElement('p', { className: "text-center text-slate-400" }, "まだ投稿はありません。")
-      : sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete }))
+    sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete }))
   );
 };
+
+// -- ★★★ 新機能：ラベル絞り込みUI (LabelCloud) ★★★ --
+const LabelCloud = ({ labels, activeFilter, onSelect }) => {
+    if (labels.length === 0) return null;
+
+    return React.createElement('div', { className: "mb-8 p-4 bg-slate-800/60 rounded-lg" },
+        React.createElement('h3', { className: "text-sm font-semibold text-slate-300 mb-3" }, "ラベルで絞り込み:"),
+        React.createElement('div', { className: "flex flex-wrap gap-2 items-center" },
+            React.createElement('button', {
+                onClick: () => onSelect(null), // nullを渡してフィルターを解除
+                className: `px-3 py-1.5 text-xs rounded-full ${!activeFilter ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
+            }, "すべて表示"),
+            labels.map(label => React.createElement('button', {
+                key: label,
+                onClick: () => onSelect(label),
+                className: `px-3 py-1.5 text-xs rounded-full ${activeFilter === label ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
+            }, label))
+        )
+    );
+};
+
 
 // -- ヘッダー --
 const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
     return React.createElement('header', { className: "bg-slate-800 p-4 flex justify-between items-center" },
-        React.createElement('h1', { className: "text-3xl font-bold text-purple-400" }, APP_TITLE),
-        isAdmin
+        React.createElement('h1', { className: "text-3xl font-bold text-purple-400 text-center" }, APP_TITLE),
+        isAdmin 
             ? React.createElement('button', { onClick: onLogoutClick, className: "px-4 py-2 bg-red-600 text-white rounded" }, "管理者モード終了")
             : React.createElement('button', { onClick: onLoginClick, className: "px-4 py-2 bg-amber-500 text-white rounded" }, "管理者モード")
     );
@@ -190,39 +205,54 @@ const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
 
 // -- メインアプリケーション (App) --
 const App = () => {
-  const [posts, setPosts] = useState(null);
+  const [allPosts, setAllPosts] = useState(null); // DBから取得した全ての投稿
   const [error, setError] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  
+  // ★★★ 新機能：アクティブなフィルターを管理するState ★★★
+  const [activeLabelFilter, setActiveLabelFilter] = useState(null);
 
-  // 初回にトークンを確認
+  // 初回にトークンを確認 & 投稿を取得
   useEffect(() => {
     const token = localStorage.getItem('admin-token');
     if (token) setIsAdmin(true);
-  }, []);
-
-  // 投稿を取得
-  const fetchPosts = useCallback(async () => {
-    try {
-      const res = await fetch('/api/get-posts');
-      if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
-      const data = await res.json();
-      setPosts(data);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, []);
-
-  useEffect(() => {
+    
+    const fetchPosts = async () => {
+      try {
+        const res = await fetch('/api/get-posts');
+        if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
+        const data = await res.json();
+        setAllPosts(data);
+      } catch (err) {
+        setError(err.message);
+      }
+    };
     fetchPosts();
-  }, [fetchPosts]);
+  }, []);
 
-  // 新しい投稿が追加された時の処理
+  // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
+  const filteredPosts = useMemo(() => {
+    if (!allPosts) return [];
+    if (!activeLabelFilter) {
+      return allPosts; // フィルターがなければ全ての投稿を返す
+    }
+    return allPosts.filter(post => post.labels.includes(activeLabelFilter));
+  }, [allPosts, activeLabelFilter]);
+
+  // ★★★ 新機能：全てのユニークなラベルを計算 ★★★
+  const uniqueLabels = useMemo(() => {
+    if (!allPosts) return [];
+    const labelSet = new Set();
+    allPosts.forEach(post => post.labels.forEach(label => labelSet.add(label)));
+    return Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ja-JP'));
+  }, [allPosts]);
+
+
   const handlePostAdded = (newPost) => {
-    setPosts(currentPosts => [newPost, ...(currentPosts || [])]); // Ensure currentPosts is an array if null initially
+    setAllPosts(currentPosts => [newPost, ...(currentPosts || [])]);
   };
 
-  // ログイン処理
   const handleLogin = async (password) => {
     const res = await fetch('/api/admin-login', {
       method: 'POST',
@@ -230,7 +260,7 @@ const App = () => {
       body: JSON.stringify({ password }),
     });
     if (!res.ok) {
-        const errData = await res.json().catch(() => ({ message: 'ログインに失敗しました。詳細なエラーメッセージはありません。'})); // Provide fallback error
+        const errData = await res.json().catch(() => ({message: 'ログインに失敗しました。詳細エラー不明'}));
         throw new Error(errData.message || 'ログインに失敗しました。');
     }
     const { token } = await res.json();
@@ -239,13 +269,11 @@ const App = () => {
     setShowLogin(false);
   };
 
-  // ログアウト処理
   const handleLogout = () => {
     localStorage.removeItem('admin-token');
     setIsAdmin(false);
   };
   
-  // 投稿削除処理
   const handleDeletePost = async (postId) => {
       if (!window.confirm("この投稿を本当に削除しますか？")) return;
       try {
@@ -258,24 +286,32 @@ const App = () => {
               },
               body: JSON.stringify({ postId }),
           });
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({ message: '削除に失敗しました。詳細なエラーメッセージはありません。'}));
-            throw new Error(errData.message || '削除に失敗しました。');
-          }
-          // 成功したら投稿一覧を再読み込み
-          fetchPosts();
+          if (!res.ok) { const err = await res.json().catch(() => ({message: '削除に失敗しました。詳細エラー不明'})); throw new Error(err.message || '削除に失敗しました。');}
+          // 成功したら投稿一覧を更新
+          setAllPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
       } catch (err) {
           alert(err.message);
       }
   };
 
-
   const renderContent = () => {
     if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
-    if (posts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
+    if (allPosts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
+    
+    const noPostsAfterFilter = filteredPosts.length === 0 && activeLabelFilter;
+    const noPostsAtAll = allPosts.length === 0;
+
+
     return React.createElement(React.Fragment, null,
       React.createElement('div', { className: "mb-12" }, React.createElement(PostForm, { onPostAdded: handlePostAdded })),
-      React.createElement(PostList, { posts: posts, isAdmin: isAdmin, onDelete: handleDeletePost })
+      // ★★★ 新機能：LabelCloudを表示 ★★★
+      !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
+      // ★★★ 変更点：filteredPostsをPostListに渡す ★★★
+      filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost }),
+      // ★★★ 新機能：絞り込み結果が0件の場合のメッセージ ★★★
+      noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
+      // 全ての投稿が0件の場合のメッセージ (フィルターに関わらず、投稿が本当にない場合)
+      noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
     );
   };
 
