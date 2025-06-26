@@ -1,4 +1,3 @@
-// /api/delete-post.mjs
 import { kv } from '@vercel/kv';
 import jwt from 'jsonwebtoken';
 
@@ -10,32 +9,42 @@ export default async function handler(request, response) {
   }
 
   try {
-    // 1. ヘッダーから認証トークンを取得
     const authHeader = request.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN" の形式を想定
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
       return response.status(401).json({ message: '認証トークンがありません。' });
     }
 
-    // 2. トークンを検証
-    jwt.verify(token, JWT_SECRET); // 不正なトークンならここでエラーが発生する
+    jwt.verify(token, JWT_SECRET);
 
-    // 3. 削除対象の投稿IDを取得
     const { postId } = request.body;
     if (!postId) {
       return response.status(400).json({ message: '投稿IDが指定されていません。' });
     }
 
-    // 4. データベースから投稿を削除
     const allPosts = await kv.lrange('posts', 0, -1);
-    const postsToKeep = allPosts.filter(p => JSON.parse(p).id !== postId);
 
+    // ★★★ ここが修正点 ★★★
+    // JSON.parse(p) をやめて、直接 p.id でアクセスします
+    const postsToKeep = allPosts.filter(p => p.id !== postId);
+
+    if (allPosts.length === postsToKeep.length) {
+      // 削除対象が見つからなかった場合
+      return response.status(404).json({ message: '削除対象の投稿が見つかりませんでした。' });
+    }
+    
     // トランザクションで安全にリストを更新
-    await kv.multi()
-      .del('posts') // 一旦リストを全削除
-      .lpush('posts', ...postsToKeep) // 削除後のリストで再作成
-      .exec();
+    // lpushは複数の引数を取れるので、スプレッド構文(...)を使います
+    if (postsToKeep.length > 0) {
+      await kv.multi()
+        .del('posts')
+        .lpush('posts', ...postsToKeep)
+        .exec();
+    } else {
+      // 全ての投稿が削除された場合は、キー自体を削除
+      await kv.del('posts');
+    }
 
     return response.status(200).json({ success: true });
 
