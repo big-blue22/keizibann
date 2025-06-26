@@ -788,9 +788,9 @@
       const fetchPosts = useCallback(async () => {
         setIsLoadingPosts(true);
         setLoadingError(null);
-        console.log("Attempting to fetch posts from API...");
+        console.log("Attempting to fetch posts from API (/api/get-posts)...");
         try {
-          const response = await fetch(`${API_BASE_URL}/posts`);
+          const response = await fetch(`${API_BASE_URL}/get-posts`); // Corrected Endpoint
           if (!response.ok) {
             throw new Error(`APIエラー: ${response.status} ${response.statusText}. サーバーが応答しないか、エンドポイントが存在しない可能性があります。`);
           }
@@ -816,9 +816,9 @@
 
 
       const addPost = useCallback(async (newPostData) => { 
-        console.log("Attempting to add post via API:", newPostData);
+        console.log("Attempting to add post via API (/api/posts):", newPostData);
         try {
-          const response = await fetch(`${API_BASE_URL}/posts`, {
+          const response = await fetch(`${API_BASE_URL}/posts`, { // Endpoint for creating posts
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -855,9 +855,9 @@
         }
 
         if (window.confirm("この投稿を本当に削除しますか？この操作は元に戻せません。")) {
-          console.log(`Attempting to delete post ${postId} via API...`);
+          console.log(`Attempting to delete post ${postId} via API (/api/posts/:id)...`);
           try {
-            const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+            const response = await fetch(`${API_BASE_URL}/posts/${postId}`, { // Endpoint for deleting posts
               method: 'DELETE',
             });
 
