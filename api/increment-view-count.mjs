@@ -1,3 +1,4 @@
+// api/increment-view-count.mjs
 import { kv } from '@vercel/kv';
 
 export default async function handler(request, response) {
@@ -11,28 +12,33 @@ export default async function handler(request, response) {
       return response.status(400).json({ message: 'postIdが指定されていません。' });
     }
 
-    // 投稿リストを全て取得
-    let posts = await kv.lrange('posts', 0, -1);
-    let updatedPost = null;
+    const posts = await kv.lrange('posts', 0, -1);
+    let postToUpdate = null;
+    let postIndex = -1;
 
-    // 投稿を検索し、viewCountをインクリメント
-    const updatedPosts = posts.map(postStr => {
-      const post = JSON.parse(postStr);
-      if (post.id === postId) {
-        post.viewCount = (post.viewCount || 0) + 1;
-        updatedPost = post;
-        return JSON.stringify(post);
+    // 更新対象の投稿と、そのリスト内での位置（index）を見つける
+    for (let i = 0; i < posts.length; i++) {
+      try {
+        const post = JSON.parse(posts[i]);
+        if (post.id === postId) {
+          postToUpdate = post;
+          postIndex = i;
+          break;
+        }
+      } catch (e) {
+        console.error(`Error parsing post at index ${i}:`, posts[i], e);
+        // JSONのパースに失敗した投稿はスキップします
       }
-      return postStr;
-    });
+    }
 
-    if (updatedPost) {
-      // 元のリストを削除し、新しいリストで上書き
-      await kv.del('posts');
-      if (updatedPosts.length > 0) {
-        await kv.lpush('posts', ...updatedPosts.reverse());
-      }
-      return response.status(200).json({ success: true, post: updatedPost });
+    if (postToUpdate && postIndex !== -1) {
+      // 閲覧数を増やす
+      postToUpdate.viewCount = (postToUpdate.viewCount || 0) + 1;
+
+      // lsetコマンドで、指定した位置の要素を更新する
+      await kv.lset('posts', postIndex, JSON.stringify(postToUpdate));
+      
+      return response.status(200).json({ success: true, post: postToUpdate });
     } else {
       return response.status(404).json({ message: '投稿が見つかりませんでした。' });
     }

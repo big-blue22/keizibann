@@ -279,11 +279,11 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     );
 };
 
-const PostList = ({ posts, isAdmin, onDelete }) => {
+const PostList = ({ posts, isAdmin, onDelete, onPostUpdated }) => {
   const sortedPosts = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   
   return React.createElement('div', { className: "space-y-8" },
-    sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete }))
+    sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete, onPostUpdated: onPostUpdated }))
   );
 };
 
@@ -370,6 +370,13 @@ const App = () => {
     setActiveTab('view'); // 投稿後は一覧表示に切り替える
   };
 
+  const handlePostUpdated = (updatedPost) => {
+    setAllPosts(currentPosts => {
+      if (!currentPosts) return [];
+      return currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+    });
+  };
+
   const handleLogin = async (password) => {
     const res = await fetch('/api/admin-login', {
       method: 'POST',
@@ -427,7 +434,7 @@ const App = () => {
 
     const viewTabContent = React.createElement(React.Fragment, null,
         !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
-        filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost }),
+        filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
         noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
         noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
     );
