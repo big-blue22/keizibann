@@ -1,4 +1,5 @@
 // api/get-posts.mjs
+
 import { kv } from '@vercel/kv';
 import fs from 'fs/promises';
 import path from 'path';
@@ -21,12 +22,12 @@ function isKvAvailable() {
 }
 
 export default async function handler(request, response) {
-  // GETリクエスト以外は受け付けない
   if (request.method !== 'GET') {
     return response.status(405).json({ message: 'Only GET requests are allowed' });
   }
 
   try {
+    const { sortBy } = request.query; // ★ 並び替えパラメータを取得
     let posts = [];
 
     if (isKvAvailable()) {
@@ -34,15 +35,12 @@ export default async function handler(request, response) {
       const postsAsStrings = await kv.lrange('posts', 0, -1);
       posts = postsAsStrings.map(postData => {
         try {
-          // 既にオブジェクトの場合はそのまま返す
           if (typeof postData === 'object' && postData !== null) {
             return postData;
           }
-          // 文字列の場合はJSON.parseを試行
           if (typeof postData === 'string') {
             return JSON.parse(postData);
           }
-          // その他の場合はnullを返す
           return null;
         } catch (e) {
           console.error('投稿データの解析に失敗:', postData, e);
@@ -52,6 +50,14 @@ export default async function handler(request, response) {
     } else {
       // 開発環境：ローカルファイルを使用
       posts = await loadPostsLocal();
+    }
+
+    // ★ 並び替え処理を追加
+    if (sortBy === 'viewCount') {
+      posts.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+    } else {
+      // デフォルトは作成日時の降順
+      posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
     return response.status(200).json(posts);
