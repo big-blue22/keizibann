@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "api/create-post.mjs": {
+      "memory": 128
+    },
+    "api/get-posts.mjs": {
+      "memory": 128
+    },
+    "api/delete-post.mjs": {
+      "memory": 128
+    },
+    "api/increment-view-count.mjs": {
+      "memory": 128
+    },
+    "api/refine-content.mjs": {
+      "memory": 256
+    },
+    "api/analyze-labels.mjs": {
+      "memory": 256
+    }
+  }
+}
