@@ -157,27 +157,42 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [newCommentContent, setNewCommentContent] = useState('');
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
 
-    // 閲覧数をインクリメント
-    useEffect(() => {
-        const incrementViewCount = async () => {
-            try {
-                const res = await fetch('/api/increment-view-count', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId: post.id }),
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.post) {
-                        onPostUpdated(data.post); // 更新された投稿データをAppコンポーネントに伝える
-                    }
+    // 閲覧数をインクリメントする関数（重複防止機能付き）
+    const incrementViewCount = async () => {
+        // 最後にインクリメントした時刻をチェック（5分間のクールダウン）
+        const lastIncrementKey = `lastIncrement_${post.id}`;
+        const lastIncrement = localStorage.getItem(lastIncrementKey);
+        const now = Date.now();
+        const cooldownPeriod = 5 * 60 * 1000; // 5分間
+
+        if (lastIncrement && (now - parseInt(lastIncrement)) < cooldownPeriod) {
+            console.log('閲覧数の更新はクールダウン中です');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/increment-view-count', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId: post.id }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.post) {
+                    // 成功時にのみタイムスタンプを記録
+                    localStorage.setItem(lastIncrementKey, now.toString());
+                    onPostUpdated(data.post); // 更新された投稿データをAppコンポーネントに伝える
                 }
-            } catch (err) {
-                console.error('Failed to increment view count:', err);
+            } else if (res.status === 429) {
+                // サーバー側でレート制限された場合
+                console.log('閲覧数の更新がサーバー側で制限されました');
+            } else {
+                console.error('閲覧数の更新に失敗しました:', res.status);
             }
-        };
-        incrementViewCount();
-    }, [post.id, onPostUpdated]);
+        } catch (err) {
+            console.error('Failed to increment view count:', err);
+        }
+    };
 
     const fetchComments = useCallback(async () => {
         setCommentStatus({ loading: true, error: null });
@@ -245,7 +260,13 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
             onClick: () => onDelete(post.id),
             className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
         }, "削除"),
-        React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }, post.url)),
+        React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', { 
+            href: post.url, 
+            target: "_blank", 
+            rel: "noopener noreferrer", 
+            className: "hover:underline",
+            onClick: incrementViewCount
+        }, post.url)),
         React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
         React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
