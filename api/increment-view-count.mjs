@@ -21,16 +21,18 @@ export default async function handler(request, response) {
       if (post.id === postId) {
         post.viewCount = (post.viewCount || 0) + 1;
         updated = true;
+        return response.status(200).json({ success: true, post: post });
       }
       return JSON.stringify(post);
     });
 
     if (updated) {
-      // 元のリストを削除し、更新されたリストで上書き
+      // 元のリストを削除し、新しいリストで上書き
       await kv.del('posts');
       if (updatedPosts.length > 0) {
         await kv.lpush('posts', ...updatedPosts.reverse());
       }
+      // ここには到達しないはずだが、念のため
       return response.status(200).json({ success: true });
     } else {
       return response.status(404).json({ message: '投稿が見つかりませんでした。' });

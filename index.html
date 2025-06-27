@@ -151,7 +151,7 @@ const PostForm = ({ onPostAdded }) => {
 };
 
 // -- 投稿一覧 (PostList & PostCard) --
-const PostCard = ({ post, isAdmin, onDelete }) => {
+const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState([]);
     const [newCommentContent, setNewCommentContent] = useState('');
@@ -161,17 +161,23 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
     useEffect(() => {
         const incrementViewCount = async () => {
             try {
-                await fetch('/api/increment-view-count', {
+                const res = await fetch('/api/increment-view-count', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ postId: post.id }),
                 });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.post) {
+                        onPostUpdated(data.post); // 更新された投稿データをAppコンポーネントに伝える
+                    }
+                }
             } catch (err) {
                 console.error('Failed to increment view count:', err);
             }
         };
         incrementViewCount();
-    }, [post.id]);
+    }, [post.id, onPostUpdated]);
 
     const fetchComments = useCallback(async () => {
         setCommentStatus({ loading: true, error: null });
