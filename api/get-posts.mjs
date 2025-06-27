@@ -1,6 +1,24 @@
 // api/get-posts.mjs
-
 import { kv } from '@vercel/kv';
+import fs from 'fs/promises';
+import path from 'path';
+
+const POSTS_FILE = path.join(process.cwd(), 'data', 'posts.json');
+
+// 開発環境用：ローカルファイルストレージ
+async function loadPostsLocal() {
+  try {
+    const data = await fs.readFile(POSTS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+// Vercel KVが利用可能かチェック
+function isKvAvailable() {
+  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+}
 
 export default async function handler(request, response) {
   // GETリクエスト以外は受け付けない
@@ -9,28 +27,27 @@ export default async function handler(request, response) {
   }
 
   try {
-    // データベースからすべての投稿を「文字列のリスト」として取得
-    const postsAsStrings = await kv.lrange('posts', 0, -1);
+    let posts = [];
 
-    // 各投稿を安全に解析（パース）して、オブジェクトの配列に変換する
-    const parsedPosts = postsAsStrings.map(postString => {
-      try {
-        // 文字列をJavaScriptオブジェクトに変換してみる
-        return JSON.parse(postString);
-      } catch (e) {
-        // もしJSON.parseでエラーが出たら（データが壊れていたら）
-        // サーバーのコンソールにエラー内容と問題のデータを記録
-        console.error('破損した投稿データをスキップしました:', postString, e);
-        // この壊れたデータは結果に含めず、nullを返す
-        return null;
-      }
-    }).filter(post => post !== null); // nullになった要素をリストから完全に除去する
+    if (isKvAvailable()) {
+      // 本番環境：Vercel KVを使用
+      const postsAsStrings = await kv.lrange('posts', 0, -1);
+      posts = postsAsStrings.map(postString => {
+        try {
+          return JSON.parse(postString);
+        } catch (e) {
+          console.error('破損した投稿データをスキップしました:', postString, e);
+          return null;
+        }
+      }).filter(post => post !== null);
+    } else {
+      // 開発環境：ローカルファイルを使用
+      posts = await loadPostsLocal();
+    }
 
-    // 正常に解析できた投稿だけをクライアントに返す
-    return response.status(200).json(parsedPosts);
+    return response.status(200).json(posts);
 
   } catch (error) {
-    // データベース接続など、その他の致命的なエラーが発生した場合
     console.error('投稿の取得中にエラーが発生しました:', error);
     return response.status(500).json({ message: 'サーバー側で問題が発生しました。' });
   }

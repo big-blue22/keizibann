@@ -1,5 +1,34 @@
 // /api/create-post.mjs
 import { kv } from '@vercel/kv';
+import fs from 'fs/promises';
+import path from 'path';
+
+const POSTS_FILE = path.join(process.cwd(), 'data', 'posts.json');
+
+// 開発環境用：ローカルファイルストレージ
+async function loadPostsLocal() {
+  try {
+    const data = await fs.readFile(POSTS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+async function savePostsLocal(posts) {
+  const dataDir = path.dirname(POSTS_FILE);
+  try {
+    await fs.access(dataDir);
+  } catch {
+    await fs.mkdir(dataDir, { recursive: true });
+  }
+  await fs.writeFile(POSTS_FILE, JSON.stringify(posts, null, 2));
+}
+
+// Vercel KVが利用可能かチェック
+function isKvAvailable() {
+  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+}
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -18,11 +47,18 @@ export default async function handler(request, response) {
       summary,
       labels,
       createdAt: new Date().toISOString(),
-      viewCount: 0, // 新しくviewCountを追加
+      viewCount: 0,
     };
 
-    // 'posts' というキーのリストの先頭に新しい投稿を追加
-    await kv.lpush('posts', JSON.stringify(newPost));
+    if (isKvAvailable()) {
+      // 本番環境：Vercel KVを使用
+      await kv.lpush('posts', JSON.stringify(newPost));
+    } else {
+      // 開発環境：ローカルファイルを使用
+      const posts = await loadPostsLocal();
+      posts.unshift(newPost);
+      await savePostsLocal(posts);
+    }
 
     return response.status(200).json({ success: true, post: newPost });
   } catch (error) {
