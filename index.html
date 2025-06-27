@@ -209,6 +209,7 @@ const App = () => {
   const [error, setError] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [activeTab, setActiveTab] = useState('view'); // 'view' or 'create'
   
   // ★★★ 新機能：アクティブなフィルターを管理するState ★★★
   const [activeLabelFilter, setActiveLabelFilter] = useState(null);
@@ -251,6 +252,7 @@ const App = () => {
 
   const handlePostAdded = (newPost) => {
     setAllPosts(currentPosts => [newPost, ...(currentPosts || [])]);
+    setActiveTab('view'); // 投稿後は一覧表示に切り替える
   };
 
   const handleLogin = async (password) => {
@@ -294,6 +296,13 @@ const App = () => {
       }
   };
 
+  const TabButton = ({ label, isActive, onClick }) => {
+      const baseClasses = "px-6 py-2 text-lg font-medium rounded-t-lg transition-colors duration-200 focus:outline-none";
+      const activeClasses = "bg-slate-800 text-purple-400";
+      const inactiveClasses = "bg-slate-700 text-slate-400 hover:bg-slate-600";
+      return React.createElement('button', { onClick, className: `${baseClasses} ${isActive ? activeClasses : inactiveClasses}` }, label);
+  };
+
   const renderContent = () => {
     if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
     if (allPosts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
@@ -301,17 +310,23 @@ const App = () => {
     const noPostsAfterFilter = filteredPosts.length === 0 && activeLabelFilter;
     const noPostsAtAll = allPosts.length === 0;
 
+    const viewTabContent = React.createElement(React.Fragment, null,
+        !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
+        filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost }),
+        noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
+        noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
+    );
+
+    const createTabContent = React.createElement(PostForm, { onPostAdded: handlePostAdded });
 
     return React.createElement(React.Fragment, null,
-      React.createElement('div', { className: "mb-12" }, React.createElement(PostForm, { onPostAdded: handlePostAdded })),
-      // ★★★ 新機能：LabelCloudを表示 ★★★
-      !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
-      // ★★★ 変更点：filteredPostsをPostListに渡す ★★★
-      filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost }),
-      // ★★★ 新機能：絞り込み結果が0件の場合のメッセージ ★★★
-      noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
-      // 全ての投稿が0件の場合のメッセージ (フィルターに関わらず、投稿が本当にない場合)
-      noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
+        React.createElement('div', { className: "flex space-x-2 border-b border-slate-700" },
+            React.createElement(TabButton, { label: "投稿一覧", isActive: activeTab === 'view', onClick: () => setActiveTab('view') }),
+            React.createElement(TabButton, { label: "新規投稿", isActive: activeTab === 'create', onClick: () => setActiveTab('create') })
+        ),
+        React.createElement('div', { className: "p-6 bg-slate-800 rounded-b-xl" },
+            activeTab === 'view' ? viewTabContent : createTabContent
+        )
     );
   };
 
