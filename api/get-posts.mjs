@@ -32,11 +32,20 @@ export default async function handler(request, response) {
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
       const postsAsStrings = await kv.lrange('posts', 0, -1);
-      posts = postsAsStrings.map(postString => {
+      posts = postsAsStrings.map(postData => {
         try {
-          return JSON.parse(postString);
+          // 既にオブジェクトの場合はそのまま返す
+          if (typeof postData === 'object' && postData !== null) {
+            return postData;
+          }
+          // 文字列の場合はJSON.parseを試行
+          if (typeof postData === 'string') {
+            return JSON.parse(postData);
+          }
+          // その他の場合はnullを返す
+          return null;
         } catch (e) {
-          console.error('破損した投稿データをスキップしました:', postString, e);
+          console.error('投稿データの解析に失敗:', postData, e);
           return null;
         }
       }).filter(post => post !== null);

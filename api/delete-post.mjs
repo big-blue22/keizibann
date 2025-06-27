@@ -38,12 +38,24 @@ export default async function handler(request, response) {
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
       const allPosts = await kv.lrange('posts', 0, -1);
-      const postsToKeep = allPosts.filter(postString => {
+      const postsToKeep = allPosts.filter(postData => {
         try {
-          const post = JSON.parse(postString);
+          let post;
+          // 既にオブジェクトの場合
+          if (typeof postData === 'object' && postData !== null) {
+            post = postData;
+          }
+          // 文字列の場合はJSON.parseを試行
+          else if (typeof postData === 'string') {
+            post = JSON.parse(postData);
+          }
+          else {
+            return true; // 不明なデータは保持
+          }
+          
           return post.id !== postId;
         } catch (e) {
-          console.error("Could not parse post, keeping it:", postString);
+          console.error("Could not parse post, keeping it:", postData);
           return true;
         }
       });
@@ -54,7 +66,14 @@ export default async function handler(request, response) {
 
       await kv.del('posts');
       if (postsToKeep.length > 0) {
-        await kv.lpush('posts', ...postsToKeep.reverse());
+        // 確実にJSON文字列として保存し直す
+        const stringifiedPosts = postsToKeep.map(postData => {
+          if (typeof postData === 'string') {
+            return postData;
+          }
+          return JSON.stringify(postData);
+        });
+        await kv.lpush('posts', ...stringifiedPosts.reverse());
       }
     } else {
       // 開発環境：ローカルファイルを使用

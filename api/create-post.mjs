@@ -52,7 +52,10 @@ export default async function handler(request, response) {
 
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
-      await kv.lpush('posts', JSON.stringify(newPost));
+      // 確実にJSON文字列として保存
+      const postJsonString = JSON.stringify(newPost);
+      await kv.lpush('posts', postJsonString);
+      console.log('KVに保存された投稿:', postJsonString);
     } else {
       // 開発環境：ローカルファイルを使用
       const posts = await loadPostsLocal();

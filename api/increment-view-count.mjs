@@ -43,7 +43,19 @@ export default async function handler(request, response) {
 
       for (let i = 0; i < posts.length; i++) {
         try {
-          const post = JSON.parse(posts[i]);
+          let post;
+          // 既にオブジェクトの場合
+          if (typeof posts[i] === 'object' && posts[i] !== null) {
+            post = posts[i];
+          }
+          // 文字列の場合はJSON.parseを試行
+          else if (typeof posts[i] === 'string') {
+            post = JSON.parse(posts[i]);
+          }
+          else {
+            continue; // 不明なデータはスキップ
+          }
+          
           if (post.id === postId) {
             postToUpdate = post;
             postIndex = i;
@@ -56,6 +68,7 @@ export default async function handler(request, response) {
 
       if (postToUpdate && postIndex !== -1) {
         postToUpdate.viewCount = (postToUpdate.viewCount || 0) + 1;
+        // 確実にJSON文字列として保存
         await kv.lset('posts', postIndex, JSON.stringify(postToUpdate));
         return response.status(200).json({ success: true, post: postToUpdate });
       } else {
