@@ -152,6 +152,53 @@ const PostForm = ({ onPostAdded }) => {
 
 // -- 投稿一覧 (PostList & PostCard) --
 const PostCard = ({ post, isAdmin, onDelete }) => {
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [newCommentContent, setNewCommentContent] = useState('');
+    const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
+
+    const fetchComments = useCallback(async () => {
+        setCommentStatus({ loading: true, error: null });
+        try {
+            const res = await fetch(`/api/get-comments?postId=${post.id}`);
+            if (!res.ok) throw new Error('コメントの取得に失敗しました。');
+            const data = await res.json();
+            setComments(data.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))); // 古い順にソート
+            setCommentStatus({ loading: false, error: null });
+        } catch (err) {
+            console.error('Failed to fetch comments:', err);
+            setCommentStatus({ loading: false, error: err.message });
+        }
+    }, [post.id]);
+
+    useEffect(() => {
+        if (showComments) {
+            fetchComments();
+        }
+    }, [showComments, fetchComments]);
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+        if (!newCommentContent.trim()) return;
+
+        setCommentStatus({ loading: true, error: null });
+        try {
+            const res = await fetch('/api/add-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId: post.id, commentContent: newCommentContent }),
+            });
+            if (!res.ok) throw new Error('コメントの追加に失敗しました。');
+            const data = await res.json();
+            setComments(prevComments => [...prevComments, data.comment].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
+            setNewCommentContent('');
+            setCommentStatus({ loading: false, error: null });
+        } catch (err) {
+            console.error('Failed to add comment:', err);
+            setCommentStatus({ loading: false, error: err.message });
+        }
+    };
+
     return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
         isAdmin && React.createElement('button', {
             onClick: () => onDelete(post.id),
@@ -160,7 +207,29 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
         React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }, post.url)),
         React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
-        React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP'))
+        React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
+
+        React.createElement('button', {
+            onClick: () => setShowComments(!showComments),
+            className: "mt-4 px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
+        }, showComments ? 'コメントを非表示' : `コメントを表示 (${comments.length})`),
+
+        showComments && React.createElement('div', { className: "mt-4 pt-4 border-t border-slate-700" },
+            React.createElement('h4', { className: "text-lg font-semibold text-slate-300 mb-3" }, "コメント"),
+            commentStatus.loading && React.createElement(LoadingSpinner, { size: 'sm' }),
+            commentStatus.error && React.createElement('p', { className: "text-red-400" }, `コメントの読み込みエラー: ${commentStatus.error}`),
+            comments.length === 0 && !commentStatus.loading && !commentStatus.error && React.createElement('p', { className: "text-slate-500" }, "まだコメントはありません。"),
+            React.createElement('div', { className: "space-y-3" },
+                comments.map(comment => React.createElement('div', { key: comment.id, className: "bg-slate-700 p-3 rounded" },
+                    React.createElement('p', { className: "text-slate-200 whitespace-pre-wrap" }, comment.commentContent),
+                    React.createElement('p', { className: "text-xs text-slate-400 mt-1" }, new Date(comment.createdAt).toLocaleString('ja-JP'))
+                ))
+            ),
+            React.createElement('form', { onSubmit: handleAddComment, className: "mt-4 flex space-x-2" },
+                React.createElement('input', { type: "text", value: newCommentContent, onChange: e => setNewCommentContent(e.target.value), placeholder: "コメントを追加...", className: "flex-grow p-2 bg-slate-700 rounded" }),
+                React.createElement('button', { type: "submit", disabled: commentStatus.loading, className: "px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50" }, "送信")
+            )
+        )
     );
 };
 
