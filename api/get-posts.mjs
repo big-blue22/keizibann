@@ -3,12 +3,10 @@ import { kv } from '@vercel/kv';
 export default async function handler(request, response) {
   try {
     // kv.lrangeは、自動的にJSONをパースしてオブジェクトの配列を返してくれます
-    const posts = await kv.lrange('posts', 0, -1);
+    const postStrings = await kv.lrange('posts', 0, -1);
+    const posts = postStrings.map(postStr => JSON.parse(postStr));
 
-    // 以前のコードにあった JSON.parse の処理は不要なので削除しました。
-
-    // 取得した投稿データをフロントエンドに返す
-    return response.status(200).json(posts || []); // もし投稿がまだなければ空の配列を返す
+    return response.status(200).json(posts || []);
 
   } catch (error) {
     console.error('Error fetching posts:', error);
