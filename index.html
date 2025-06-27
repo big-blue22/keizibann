@@ -157,6 +157,22 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
     const [newCommentContent, setNewCommentContent] = useState('');
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
 
+    // 閲覧数をインクリメント
+    useEffect(() => {
+        const incrementViewCount = async () => {
+            try {
+                await fetch('/api/increment-view-count', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId: post.id }),
+                });
+            } catch (err) {
+                console.error('Failed to increment view count:', err);
+            }
+        };
+        incrementViewCount();
+    }, [post.id]);
+
     const fetchComments = useCallback(async () => {
         setCommentStatus({ loading: true, error: null });
         try {
@@ -199,6 +215,25 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
         }
     };
 
+    const handleDeleteComment = async (commentId) => {
+        if (!window.confirm("このコメントを本当に削除しますか？")) return;
+        try {
+            const token = localStorage.getItem('admin-token');
+            const res = await fetch('/api/delete-comment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ postId: post.id, commentId }),
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({ message: 'コメントの削除に失敗しました。詳細エラー不明' })); throw new Error(err.message || 'コメントの削除に失敗しました。'); }
+            setComments(prevComments => prevComments.filter(c => c.id !== commentId));
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
     return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
         isAdmin && React.createElement('button', {
             onClick: () => onDelete(post.id),
@@ -208,6 +243,7 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
         React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
         React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
+        React.createElement('p', { className: "text-xs text-slate-500 mt-1" }, `閲覧数: ${post.viewCount || 0}`),
 
         React.createElement('button', {
             onClick: () => setShowComments(!showComments),

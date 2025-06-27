@@ -18,6 +18,7 @@ export default async function handler(request, response) {
       summary,
       labels,
       createdAt: new Date().toISOString(),
+      viewCount: 0, // 新しくviewCountを追加
     };
 
     // 'posts' というキーのリストの先頭に新しい投稿を追加
