@@ -13,27 +13,26 @@ export default async function handler(request, response) {
 
     // 投稿リストを全て取得
     let posts = await kv.lrange('posts', 0, -1);
-    let updated = false;
+    let updatedPost = null;
 
     // 投稿を検索し、viewCountをインクリメント
     const updatedPosts = posts.map(postStr => {
       const post = JSON.parse(postStr);
       if (post.id === postId) {
         post.viewCount = (post.viewCount || 0) + 1;
-        updated = true;
-        return response.status(200).json({ success: true, post: post });
+        updatedPost = post;
+        return JSON.stringify(post);
       }
-      return JSON.stringify(post);
+      return postStr;
     });
 
-    if (updated) {
+    if (updatedPost) {
       // 元のリストを削除し、新しいリストで上書き
       await kv.del('posts');
       if (updatedPosts.length > 0) {
         await kv.lpush('posts', ...updatedPosts.reverse());
       }
-      // ここには到達しないはずだが、念のため
-      return response.status(200).json({ success: true });
+      return response.status(200).json({ success: true, post: updatedPost });
     } else {
       return response.status(404).json({ message: '投稿が見つかりませんでした。' });
     }
