@@ -20,7 +20,14 @@ export default async function handler(request, response) {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-        const prompt = `あなたは熟練したAIコンテンツアナリストです。以下のテキストに基づき、関連するカテゴリラベルを特定してください。主要なAIモデル名（例: "GPT-4"）を必ず1つ含めてください。もし特定モデルがなければ "特定モデルなし" を含めてください。合計3〜5個のラベルを、日本語のJSON配列形式で返してください。\n\n分析するコンテンツ：\n---\n${content}\n---\n\n提案ラベル (JSON配列形式)：`;
+        const prompt = `あなたは、テキストからAIモデルの名前を特定する専門家です。以下のコンテンツを分析し、言及されている具体的なAIモデル名（例: "GPT-4", "Claude 3", "Gemini 1.5 Pro"）のみを抽出してください。該当するモデル名がない場合は、空の配列 [] を返してください。結果は必ず日本語のJSON配列形式で、モデル名のみを格納して返してください。
+
+分析するコンテンツ：
+---
+${content}
+---
+
+抽出したAIモデル名 (JSON配列形式)：`;
 
         const result = await model.generateContent(prompt);
         let jsonStr = await result.response.text();
