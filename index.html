@@ -25,7 +25,7 @@
 import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 
-// -- 定数や共通のコンポーネント --
+// ... (他のコンポーネントは変更なし) ...
 const APP_TITLE = "AI技術共有ハブ";
 
 const LoadingSpinner = ({ size = 'md' }) => {
@@ -300,15 +300,14 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     );
 };
 
+
 const PostList = ({ posts, isAdmin, onDelete, onPostUpdated }) => {
-  const sortedPosts = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  
+  // ★ クライアントサイドでのソートを削除 (API側でソートするため)
   return React.createElement('div', { className: "space-y-8" },
-    sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete, onPostUpdated: onPostUpdated }))
+    posts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete, onPostUpdated: onPostUpdated }))
   );
 };
 
-// -- ★★★ 新機能：ラベル絞り込みUI (LabelCloud) ★★★ --
 const LabelCloud = ({ labels, activeFilter, onSelect }) => {
     if (labels.length === 0) return null;
 
@@ -316,7 +315,7 @@ const LabelCloud = ({ labels, activeFilter, onSelect }) => {
         React.createElement('h3', { className: "text-sm font-semibold text-slate-300 mb-3" }, "ラベルで絞り込み:"),
         React.createElement('div', { className: "flex flex-wrap gap-2 items-center" },
             React.createElement('button', {
-                onClick: () => onSelect(null), // nullを渡してフィルターを解除
+                onClick: () => onSelect(null),
                 className: `px-3 py-1.5 text-xs rounded-full ${!activeFilter ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
             }, "すべて表示"),
             labels.map(label => React.createElement('button', {
@@ -328,8 +327,6 @@ const LabelCloud = ({ labels, activeFilter, onSelect }) => {
     );
 };
 
-
-// -- ヘッダー --
 const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
     return React.createElement('header', { className: "bg-slate-800 p-4 flex justify-between items-center" },
         React.createElement('h1', { className: "text-3xl font-bold text-purple-400 text-center" }, APP_TITLE),
@@ -341,43 +338,45 @@ const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
 
 // -- メインアプリケーション (App) --
 const App = () => {
-  const [allPosts, setAllPosts] = useState(null); // DBから取得した全ての投稿
+  const [allPosts, setAllPosts] = useState(null);
   const [error, setError] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [activeTab, setActiveTab] = useState('view'); // 'view' or 'create'
-  
-  // ★★★ 新機能：アクティブなフィルターを管理するState ★★★
+  const [activeTab, setActiveTab] = useState('view');
   const [activeLabelFilter, setActiveLabelFilter] = useState(null);
+  
+  // ★ 並び替えの状態を追加
+  const [sortBy, setSortBy] = useState('createdAt'); // 'createdAt' or 'viewCount'
 
-  // 初回にトークンを確認 & 投稿を取得
+  // ★ 投稿を取得する関数を useCallback でメモ化
+  const fetchPosts = useCallback(async (currentSortBy) => {
+    setError(null);
+    setAllPosts(null); // ローディング表示のため一旦nullに
+    try {
+      const res = await fetch(`/api/get-posts?sortBy=${currentSortBy}`);
+      if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
+      const data = await res.json();
+      setAllPosts(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  // 初回読み込みと並び替え変更時に投稿を再取得
   useEffect(() => {
     const token = localStorage.getItem('admin-token');
     if (token) setIsAdmin(true);
-    
-    const fetchPosts = async () => {
-      try {
-        const res = await fetch('/api/get-posts');
-        if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
-        const data = await res.json();
-        setAllPosts(data);
-      } catch (err) {
-        setError(err.message);
-      }
-    };
-    fetchPosts();
-  }, []);
+    fetchPosts(sortBy);
+  }, [fetchPosts, sortBy]);
 
-  // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
   const filteredPosts = useMemo(() => {
     if (!allPosts) return [];
     if (!activeLabelFilter) {
-      return allPosts; // フィルターがなければ全ての投稿を返す
+      return allPosts;
     }
     return allPosts.filter(post => post.labels.includes(activeLabelFilter));
   }, [allPosts, activeLabelFilter]);
 
-  // ★★★ 新機能：全てのユニークなラベルを計算 ★★★
   const uniqueLabels = useMemo(() => {
     if (!allPosts) return [];
     const labelSet = new Set();
@@ -387,14 +386,20 @@ const App = () => {
 
 
   const handlePostAdded = (newPost) => {
-    setAllPosts(currentPosts => [newPost, ...(currentPosts || [])]);
-    setActiveTab('view'); // 投稿後は一覧表示に切り替える
+    // 投稿追加時は最新のデータを再取得して表示を更新する
+    fetchPosts(sortBy);
+    setActiveTab('view');
   };
 
   const handlePostUpdated = (updatedPost) => {
     setAllPosts(currentPosts => {
       if (!currentPosts) return [];
-      return currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+      const newPosts = currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+      // viewCountでソート中の場合、リアルタイムで順序を更新
+      if(sortBy === 'viewCount') {
+          newPosts.sort((a,b) => (b.viewCount || 0) - (a.viewCount || 0));
+      }
+      return newPosts;
     });
   };
 
@@ -423,8 +428,9 @@ const App = () => {
       if (!window.confirm("この投稿を本当に削除しますか？")) return;
       try {
           const token = localStorage.getItem('admin-token');
+          // ★ DELETEメソッドに変更
           const res = await fetch('/api/delete-post', {
-              method: 'POST',
+              method: 'DELETE',
               headers: { 
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${token}`
@@ -432,7 +438,6 @@ const App = () => {
               body: JSON.stringify({ postId }),
           });
           if (!res.ok) { const err = await res.json().catch(() => ({message: '削除に失敗しました。詳細エラー不明'})); throw new Error(err.message || '削除に失敗しました。');}
-          // 成功したら投稿一覧を更新
           setAllPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
       } catch (err) {
           alert(err.message);
@@ -455,6 +460,19 @@ const App = () => {
 
     const viewTabContent = React.createElement(React.Fragment, null,
         !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
+        
+        // ★ 並び替えUIの追加
+        React.createElement('div', { className: 'flex justify-end mb-4' },
+          React.createElement('select', {
+            value: sortBy,
+            onChange: (e) => setSortBy(e.target.value),
+            className: 'bg-slate-700 text-slate-200 rounded px-3 py-1.5 text-sm'
+          },
+            React.createElement('option', { value: 'createdAt' }, '新着順'),
+            React.createElement('option', { value: 'viewCount' }, '閲覧数順')
+          )
+        ),
+        
         filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
         noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
         noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
