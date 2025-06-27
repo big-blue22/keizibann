@@ -220,7 +220,11 @@ const PostCard = ({ post, isAdmin, onDelete }) => {
             commentStatus.error && React.createElement('p', { className: "text-red-400" }, `コメントの読み込みエラー: ${commentStatus.error}`),
             comments.length === 0 && !commentStatus.loading && !commentStatus.error && React.createElement('p', { className: "text-slate-500" }, "まだコメントはありません。"),
             React.createElement('div', { className: "space-y-3" },
-                comments.map(comment => React.createElement('div', { key: comment.id, className: "bg-slate-700 p-3 rounded" },
+                comments.map(comment => React.createElement('div', { key: comment.id, className: "bg-slate-700 p-3 rounded relative" },
+                    isAdmin && React.createElement('button', {
+                        onClick: () => handleDeleteComment(comment.id),
+                        className: "absolute top-1 right-1 px-2 py-0.5 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
+                    }, "削除"),
                     React.createElement('p', { className: "text-slate-200 whitespace-pre-wrap" }, comment.commentContent),
                     React.createElement('p', { className: "text-xs text-slate-400 mt-1" }, new Date(comment.createdAt).toLocaleString('ja-JP'))
                 ))
