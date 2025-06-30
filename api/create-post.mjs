@@ -36,10 +36,48 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { url, summary, labels } = request.body;
-    if (!url || !summary || !labels) {
+    const { url, summary, originalContent } = request.body;
+    if (!url || !summary) {
       return response.status(400).json({ message: '必須項目が不足しています。' });
     }
+
+    // ラベルを自動生成（summaryから技術タグを抽出）
+    let labels = [];
+    try {
+      // 簡単なキーワードベースのラベル生成
+      const content = `${summary} ${originalContent || ''}`.toLowerCase();
+      const techKeywords = {
+        'javascript': ['javascript', 'js', 'node.js', 'nodejs'],
+        'typescript': ['typescript', 'ts'],
+        'react': ['react', 'jsx', 'react.js'],
+        'vue': ['vue', 'vue.js', 'nuxt'],
+        'angular': ['angular'],
+        'python': ['python', 'django', 'flask', 'fastapi'],
+        'ai': ['ai', 'machine learning', 'deep learning', 'llm', 'gpt', 'claude', 'gemini'],
+        'web開発': ['web', 'frontend', 'backend', 'fullstack'],
+        'データベース': ['database', 'sql', 'mongodb', 'postgres', 'mysql'],
+        'クラウド': ['aws', 'azure', 'gcp', 'cloud', 'vercel', 'netlify'],
+        'api': ['api', 'rest', 'graphql'],
+        'css': ['css', 'sass', 'scss', 'tailwind'],
+        'devops': ['docker', 'kubernetes', 'ci/cd', 'devops']
+      };
+
+      for (const [label, keywords] of Object.entries(techKeywords)) {
+        if (keywords.some(keyword => content.includes(keyword))) {
+          labels.push(label);
+        }
+      }
+
+      // ラベルが見つからない場合はデフォルトラベル
+      if (labels.length === 0) {
+        labels = ['技術情報'];
+      }
+    } catch (error) {
+      console.error('Label generation error:', error);
+      labels = ['技術情報']; // フォールバック
+    }
+
+    console.log('Creating post with data:', { url, summary, originalContent, labels });
 
     const newPost = {
       id: `post_${Date.now()}`,
