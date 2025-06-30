@@ -60,6 +60,31 @@
         </form>
     </div>
 
+    <div class="test-form">
+        <h2>テスト4: 最強対策URL入力（隠しフィールド + DOM操作 + イベント無効化）</h2>
+        <form autocomplete="off" novalidate>
+            <input type="url" style="position: absolute; left: -9999px; opacity: 0;" tabindex="-1" autocomplete="url" name="fake-url">
+            <label>最強対策URL入力:</label>
+            <input 
+                type="text" 
+                id="ultimate-url"
+                autocomplete="nope"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                data-form-type="other"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                placeholder="https://example.com" 
+                pattern="https?://.*"
+                list=""
+                role="textbox"
+            />
+            <button type="button" onclick="ultimateReset()">テスト送信</button>
+        </form>
+    </div>
+
     <div class="result">
         <h3>テスト手順:</h3>
         <ol>
@@ -77,8 +102,34 @@
             console.log('Generated new name:', input.name);
         }
         
-        // 初期化時にも動的name属性を設定
+        function ultimateReset() {
+            const input = document.getElementById('ultimate-url');
+            const newName = 'ultimate-url-' + Date.now() + '-' + Math.random().toString(36).substring(7);
+            input.name = newName;
+            input.id = newName;
+            
+            // DOM操作で強制的に属性設定
+            input.setAttribute('autocomplete', 'nope');
+            input.setAttribute('data-lpignore', 'true');
+            input.removeAttribute('list');
+            
+            // 履歴防止イベントリスナー
+            const preventHistory = (e) => {
+                e.stopImmediatePropagation();
+                if (e.target.getAttribute('list')) {
+                    e.target.removeAttribute('list');
+                }
+            };
+            
+            input.addEventListener('focus', preventHistory, true);
+            input.addEventListener('click', preventHistory, true);
+            
+            console.log('Ultimate reset applied:', newName);
+        }
+        
+        // 初期化
         generateNewName();
+        ultimateReset();
     </script>
 </body>
 </html>

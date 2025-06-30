@@ -6,6 +6,25 @@
   <title>AI Tech Share Hub</title>
   <link rel="stylesheet" href="./public/dist/output.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
+  <style>
+    /* URL入力欄の履歴無効化用CSS */
+    input[type="text"]::-webkit-outer-spin-button,
+    input[type="text"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="text"] {
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+    }
+    /* ブラウザの自動補完ドロップダウンを無効化 */
+    input[data-form-type="other"]::-webkit-contacts-auto-fill-button,
+    input[data-form-type="other"]::-webkit-credentials-auto-fill-button {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  </style>
 <script type="importmap">
 {
   "imports": {
@@ -105,6 +124,55 @@ const PostForm = ({ onPostAdded }) => {
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null });
   const [urlInputKey, setUrlInputKey] = useState(Date.now()); // URL入力欄を強制再レンダリング
+  const [inputRef, setInputRef] = useState(null); // 入力要素のref
+
+  // 入力欄を完全に再作成する関数
+  const resetUrlInput = () => {
+    const newKey = Date.now() + Math.random();
+    setUrlInputKey(newKey);
+    setTimeout(() => {
+      // DOM操作で確実に属性を設定
+      const input = document.getElementById(`url-${newKey}`);
+      if (input) {
+        input.setAttribute('autocomplete', 'nope');
+        input.setAttribute('data-lpignore', 'true');
+        input.setAttribute('data-form-type', 'other');
+        input.removeAttribute('list');
+      }
+    }, 10);
+  };
+
+  // URL入力欄の属性を強制的に設定
+  useEffect(() => {
+    const input = document.getElementById(`url-${urlInputKey}`);
+    if (input) {
+      // すべての自動補完関連属性を強制設定
+      input.setAttribute('autocomplete', 'nope');
+      input.setAttribute('data-lpignore', 'true');
+      input.setAttribute('data-1p-ignore', 'true');
+      input.setAttribute('data-bwignore', 'true');
+      input.setAttribute('data-form-type', 'other');
+      input.removeAttribute('list');
+      
+      // 履歴表示を防ぐイベントリスナー
+      const preventHistory = (e) => {
+        e.stopImmediatePropagation();
+        if (e.target.getAttribute('list')) {
+          e.target.removeAttribute('list');
+        }
+      };
+      
+      input.addEventListener('focus', preventHistory, true);
+      input.addEventListener('click', preventHistory, true);
+      input.addEventListener('mousedown', preventHistory, true);
+      
+      return () => {
+        input.removeEventListener('focus', preventHistory, true);
+        input.removeEventListener('click', preventHistory, true);
+        input.removeEventListener('mousedown', preventHistory, true);
+      };
+    }
+  }, [urlInputKey]);
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
@@ -152,7 +220,7 @@ const PostForm = ({ onPostAdded }) => {
       setUrl('');
       setOriginalContent('');
       setSummary('');
-      setUrlInputKey(Date.now()); // URL入力欄を強制再レンダリングして履歴を無効化
+      resetUrlInput(); // 完全に新しい入力欄を作成
       setStatus({ loading: false, error: null, success: '投稿が成功しました！' });
     } catch (err) {
       setStatus({ loading: false, error: err.message, success: null });
@@ -170,36 +238,51 @@ const PostForm = ({ onPostAdded }) => {
     status.success && React.createElement('p', { className: "text-green-400" }, status.success),
     // URL入力
     React.createElement('div', null,
+        // 隠しダミー入力欄（ブラウザの履歴を混乱させる）
+        React.createElement('input', {
+            type: "url",
+            style: { position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' },
+            tabIndex: -1,
+            autoComplete: "url",
+            name: "fake-url-" + Math.random(),
+            defaultValue: ""
+        }),
         React.createElement('div', { className: "flex justify-between items-center mb-1" },
             React.createElement('label', { htmlFor: "url-" + urlInputKey }, "URL *"),
             React.createElement('button', {
                 type: "button",
                 onClick: () => {
                     setUrl('');
-                    setUrlInputKey(Date.now());
+                    resetUrlInput();
                 },
                 className: "text-xs text-slate-400 hover:text-slate-200 px-2 py-1"
             }, "クリア")
         ),
         React.createElement('input', { 
-            key: urlInputKey, // React keyで強制再マウント
-            type: "text", // URLタイプから変更してブラウザ履歴を回避
+            key: "url-input-" + urlInputKey, // より複雑なkey
+            type: "text", // textタイプでURL形式のpatternを使用
             id: "url-" + urlInputKey, 
-            name: "url-field-" + urlInputKey + "-" + Math.random().toString(36).substring(7), // 完全にユニークなname
+            name: `url-${urlInputKey}-${Math.random().toString(36).substring(2, 15)}`, // 完全にランダムなname
             value: url, 
             onChange: e => setUrl(e.target.value), 
-            onFocus: () => setUrlInputKey(Date.now()), // フォーカス時に再レンダリング
+            onFocus: resetUrlInput, // フォーカス時に即座に再作成
+            onBlur: resetUrlInput, // ブラー時にも再作成
             required: true, 
-            autoComplete: "new-password", // より強力な無効化
+            autoComplete: "nope", // chromeでより効果的
             autoCapitalize: "none",
             autoCorrect: "off",
             spellCheck: false,
-            "data-form-type": "other", // ブラウザのフォーム認識を無効化
-            "data-lpignore": "true", // LastPassなどの拡張機能を無視
+            "data-form-type": "other",
+            "data-lpignore": "true",
+            "data-1p-ignore": "true", // 1Passwordを無視
+            "data-bwignore": "true", // Bitwardenを無視
             placeholder: "https://example.com",
-            pattern: "https?://.*", // URL形式の検証は残す
-            title: "有効なURLを入力してください",
-            className: "w-full p-2 bg-slate-700 rounded" 
+            pattern: "https?://.*",
+            title: "有効なURLを入力してください (https://で始まる)",
+            list: "", // datalistを無効化
+            role: "textbox", // アクセシビリティ用
+            className: "w-full p-2 bg-slate-700 rounded",
+            ref: setInputRef
         })
     ),
     // 原文入力
