@@ -91,7 +91,6 @@
             return React.createElement('div', { className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]", onClick: onClose },
                 React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
                     React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
-                    React.createElement('p', { className: "text-sm text-slate-400 mb-4" }, "パスワード: 0622"),
                     error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
                     React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
                         React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
@@ -439,6 +438,38 @@
           const [activeTab, setActiveTab] = useState('view');
           const [activeLabelFilter, setActiveLabelFilter] = useState(null);
           const [sortBy, setSortBy] = useState('createdAt');
+          
+          // JWT トークンの有効性をチェック
+          const checkTokenValidity = () => {
+            const token = localStorage.getItem('admin-token');
+            if (!token) return false;
+            
+            try {
+              // JWT トークンをデコード（検証なし）
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              const now = Math.floor(Date.now() / 1000);
+              
+              if (payload.exp && payload.exp < now) {
+                console.log('Token expired, logging out');
+                handleLogout();
+                return false;
+              }
+              return true;
+            } catch (error) {
+              console.error('Invalid token format', error);
+              handleLogout();
+              return false;
+            }
+          };
+          
+          // ページロード時にトークンの有効性をチェック
+          useEffect(() => {
+            const token = localStorage.getItem('admin-token');
+            if (token && checkTokenValidity()) {
+              setIsAdmin(true);
+            }
+          }, []);
+          
           const fetchPosts = useCallback(async (currentSortBy) => {
             setError(null);
             setAllPosts(null);
@@ -483,21 +514,25 @@
           };
           const handleLogin = async (password) => {
               try {
-                  // パスワードの前後の空白を削除
+                  // パスワードの前後の空白を削除とサニタイズ
                   const trimmedPassword = password.trim();
-                  console.log('Login attempt:');
-                  console.log('- Original password:', `"${password}"`);
-                  console.log('- Trimmed password:', `"${trimmedPassword}"`);
-                  console.log('- Password length:', trimmedPassword.length);
+                  
+                  // 基本的な入力検証
+                  if (trimmedPassword.length > 100) {
+                      throw new Error('パスワードが長すぎます。');
+                  }
                   
                   const res = await fetch('/api/admin-login', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: { 
+                          'Content-Type': 'application/json',
+                          // CSRF 保護のための追加ヘッダー
+                          'X-Requested-With': 'XMLHttpRequest'
+                      },
                       body: JSON.stringify({ password: trimmedPassword })
                   });
                   
                   console.log('API Response status:', res.status);
-                  console.log('API Response ok:', res.ok);
                   
                   if (!res.ok) { 
                       let errorMessage = `HTTP ${res.status}: ${res.statusText}`;

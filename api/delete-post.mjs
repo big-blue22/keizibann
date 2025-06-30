@@ -47,10 +47,24 @@ export default async function handler(request, response) {
       console.error('Token does not have admin privileges');
       return response.status(401).json({ message: '管理者権限が必要です。' });
     }
+    
+    // トークンの有効期限をより厳密にチェック
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < now) {
+      console.error('Token has expired');
+      return response.status(401).json({ message: 'トークンの有効期限が切れています。再ログインしてください。' });
+    }
+    
     console.log('Admin token verified successfully');
   } catch (jwtError) {
     console.error('JWT verification failed:', jwtError.message);
-    return response.status(401).json({ message: '無効な認証トークンです。' });
+    if (jwtError.name === 'TokenExpiredError') {
+      return response.status(401).json({ message: 'トークンの有効期限が切れています。再ログインしてください。' });
+    } else if (jwtError.name === 'JsonWebTokenError') {
+      return response.status(401).json({ message: '無効なトークンです。' });
+    } else {
+      return response.status(401).json({ message: '認証に失敗しました。' });
+    }
   }
 
   try {
