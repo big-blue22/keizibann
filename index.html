@@ -81,8 +81,17 @@ const AdminLoginModal = ({ onLogin, onClose }) => {
         React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
             React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
             error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
-            React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
-                React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
+            React.createElement('form', { onSubmit: handleSubmit, autoComplete: "off", noValidate: true, className: "space-y-4" },
+                React.createElement('input', { 
+                    type: "password", 
+                    name: "admin-password-" + Date.now(),
+                    value: password, 
+                    onChange: e => setPassword(e.target.value), 
+                    required: true, 
+                    placeholder: "パスワード", 
+                    autoComplete: "new-password",
+                    className: "w-full p-2 bg-slate-700 rounded" 
+                }),
                 React.createElement('button', { type: "submit", disabled: isLoading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, isLoading ? React.createElement(LoadingSpinner, {size: 'sm'}) : 'ログイン')
             )
         )
@@ -148,7 +157,12 @@ const PostForm = ({ onPostAdded }) => {
     }
   };
 
-  return React.createElement('form', { onSubmit: handleSubmit, autoComplete: "off", className: "p-6 bg-slate-800 rounded-xl space-y-4" },
+  return React.createElement('form', { 
+    onSubmit: handleSubmit, 
+    autoComplete: "off",
+    noValidate: true, // ブラウザの自動補完機能を無効化
+    className: "p-6 bg-slate-800 rounded-xl space-y-4" 
+  },
     React.createElement('h2', { className: "text-2xl font-semibold text-purple-400" }, "発見を共有"),
     status.error && React.createElement('p', { className: "text-red-400" }, status.error),
     status.success && React.createElement('p', { className: "text-green-400" }, status.success),
@@ -158,10 +172,14 @@ const PostForm = ({ onPostAdded }) => {
         React.createElement('input', { 
             type: "url", 
             id: "url", 
+            name: "url-" + Date.now(), // 動的なname属性でブラウザ履歴を無効化
             value: url, 
             onChange: e => setUrl(e.target.value), 
             required: true, 
             autoComplete: "off",
+            autoCapitalize: "none",
+            autoCorrect: "off",
+            spellCheck: false,
             className: "w-full p-2 bg-slate-700 rounded" 
         })
     ),
@@ -349,8 +367,16 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
                     React.createElement('p', { className: "text-xs text-slate-400 mt-1" }, new Date(comment.createdAt).toLocaleString('ja-JP'))
                 ))
             ),
-            React.createElement('form', { onSubmit: handleAddComment, className: "mt-4 flex space-x-2" },
-                React.createElement('input', { type: "text", value: newCommentContent, onChange: e => setNewCommentContent(e.target.value), placeholder: "コメントを追加...", className: "flex-grow p-2 bg-slate-700 rounded" }),
+            React.createElement('form', { onSubmit: handleAddComment, autoComplete: "off", className: "mt-4 flex space-x-2" },
+                React.createElement('input', { 
+                    type: "text", 
+                    name: "comment-" + Date.now(),
+                    value: newCommentContent, 
+                    onChange: e => setNewCommentContent(e.target.value), 
+                    placeholder: "コメントを追加...", 
+                    autoComplete: "off",
+                    className: "flex-grow p-2 bg-slate-700 rounded" 
+                }),
                 React.createElement('button', { type: "submit", disabled: commentStatus.loading, className: "px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50" }, "送信")
             )
         )
