@@ -91,6 +91,7 @@
             return React.createElement('div', { className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]", onClick: onClose },
                 React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
                     React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
+                    React.createElement('p', { className: "text-sm text-slate-400 mb-4" }, "パスワード: 0622"),
                     error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
                     React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
                         React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
@@ -482,11 +483,21 @@
           };
           const handleLogin = async (password) => {
               try {
+                  // パスワードの前後の空白を削除
+                  const trimmedPassword = password.trim();
+                  console.log('Login attempt:');
+                  console.log('- Original password:', `"${password}"`);
+                  console.log('- Trimmed password:', `"${trimmedPassword}"`);
+                  console.log('- Password length:', trimmedPassword.length);
+                  
                   const res = await fetch('/api/admin-login', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ password })
+                      body: JSON.stringify({ password: trimmedPassword })
                   });
+                  
+                  console.log('API Response status:', res.status);
+                  console.log('API Response ok:', res.ok);
                   
                   if (!res.ok) { 
                       let errorMessage = `HTTP ${res.status}: ${res.statusText}`;

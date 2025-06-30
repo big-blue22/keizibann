@@ -1,7 +1,7 @@
 // /api/admin-login.mjs
 import jwt from 'jsonwebtoken';
 
-const ADMIN_PASSWORD = 'admin123'; // あなたのパスワード
+const ADMIN_PASSWORD = '0622'; // あなたのパスワード
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-key-change-in-production';
 
 export default async function handler(request, response) {
@@ -12,15 +12,19 @@ export default async function handler(request, response) {
   try {
     const { password } = request.body;
     
+    // パスワードの前後の空白を削除
+    const trimmedPassword = password ? password.trim() : '';
+    
     console.log('Admin login attempt');
-    console.log('JWT_SECRET available:', !!JWT_SECRET);
     console.log('Password provided:', !!password);
+    console.log('Password match:', trimmedPassword === ADMIN_PASSWORD);
 
-    if (!password) {
+    if (!trimmedPassword) {
+      console.log('No password provided');
       return response.status(400).json({ message: 'パスワードが指定されていません。' });
     }
 
-    if (password === ADMIN_PASSWORD) {
+    if (trimmedPassword === ADMIN_PASSWORD) {
       // パスワードが正しい場合、管理者権限を持つトークンを生成
       console.log('Password correct, generating token');
       const token = jwt.sign(
