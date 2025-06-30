@@ -1,641 +1,472 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI技術共有ハブ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* tailwindで表現しにくいスタイルや、カスタムアニメーションをここに追加 */
-        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
-        .line-clamp-2 {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Tech Share Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0"
+  }
+}
+</script>
 </head>
-<body class="bg-slate-900">
-    <div id="root"></div>
+<body class="bg-slate-900 text-slate-100">
+  <div id="root"></div>
+  <script type="module">
+// index.html の <script type="module"> の中身をこれに差し替える
 
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
+import ReactDOM from 'react-dom/client';
 
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+// -- 定数や共通のコンポーネント --
+const APP_TITLE = "AI技術共有ハブ";
 
-    <script type="module">
-        // ★★★★★ 以下の2行を削除 ★★★★★
-        // import React, { useState, useCallback, useMemo, useEffect, StrictMode, useRef } from 'react';
-        // import ReactDOM from 'react-dom/client';
-        // ★★★★★ ここまで ★★★★★
+const LoadingSpinner = ({ size = 'md' }) => {
+  const sizeClasses = { sm: 'w-4 h-4 border-2', md: 'w-8 h-8 border-4', lg: 'w-12 h-12 border-[6px]' };
+  return React.createElement('div', { className: `animate-spin rounded-full ${sizeClasses[size]} border-t-transparent border-purple-400`, role: "status" });
+};
 
-        const { useState, useCallback, useMemo, useEffect, StrictMode, useRef } = React;
+const Tag = ({ label }) => React.createElement('span', { className: "px-3 py-1 text-xs font-medium rounded-full bg-slate-700 text-slate-300" }, label);
 
-        const APP_TITLE = "AI技術共有ハブ";
+// -- 管理者ログインモーダル --
+const AdminLoginModal = ({ onLogin, onClose }) => {
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-        const LoadingSpinner = ({ size = 'md' }) => {
-          const sizeClasses = { sm: 'w-4 h-4 border-2', md: 'w-8 h-8 border-4', lg: 'w-12 h-12 border-[6px]' };
-          return React.createElement('div', { className: `animate-spin rounded-full ${sizeClasses[size]} border-t-transparent border-purple-400`, role: "status" });
-        };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+        try {
+            await onLogin(password);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        const Tag = ({ label }) => React.createElement('span', { className: "px-3 py-1 text-xs font-medium rounded-full bg-slate-700 text-slate-300" }, label);
+    return React.createElement('div', { className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]", onClick: onClose },
+        React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
+            React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
+            error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
+            React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
+                React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
+                React.createElement('button', { type: "submit", disabled: isLoading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, isLoading ? React.createElement(LoadingSpinner, {size: 'sm'}) : 'ログイン')
+            )
+        )
+    );
+};
 
-        const UrlPreview = ({ data, onClear }) => {
-            if (!data) return null;
-            const hasTitle = data.title && data.title !== 'タイトルなし';
-            const hasDescription = data.description && data.description !== '説明なし';
-            const hasImage = data.image;
-            
-            // タイトルまたは説明がある場合に表示
-            if (!hasTitle && !hasDescription) return null;
-            
-            return React.createElement('div', { className: `my-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600 relative` },
-                React.createElement('button', {
-                    onClick: onClear,
-                    className: "absolute -top-2 -right-2 w-6 h-6 bg-slate-800 rounded-full text-slate-400 hover:bg-red-500 hover:text-white transition-colors text-sm"
-                }, "×"),
-                React.createElement('a', { href: data.url, target: "_blank", rel: "noopener noreferrer", className: "flex space-x-4" },
-                    hasImage && React.createElement('img', { 
-                        src: data.image, 
-                        alt: data.title || 'プレビュー画像', 
-                        className: "w-24 h-24 object-cover rounded-md flex-shrink-0 bg-slate-600",
-                        onError: (e) => { e.target.style.display = 'none'; } // 画像読み込み失敗時は非表示
-                    }),
-                    React.createElement('div', { className: "flex flex-col justify-center overflow-hidden" },
-                        hasTitle && React.createElement('p', { className: "font-semibold text-slate-200 truncate" }, data.title),
-                        hasDescription && React.createElement('p', { className: "text-sm text-slate-400 mt-1 line-clamp-2" }, data.description),
-                        React.createElement('p', { className: "text-xs text-slate-500 mt-2 truncate" }, data.siteName || new URL(data.url).hostname)
-                    )
-                )
-            );
-        };
+// -- 投稿フォーム (PostForm) --
+const PostForm = ({ onPostAdded }) => {
+  const [url, setUrl] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [summary, setSummary] = useState('');
+  const [status, setStatus] = useState({ loading: false, error: null, success: null });
 
-        const AdminLoginModal = ({ onLogin, onClose }) => {
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState(null);
-            const [isLoading, setIsLoading] = useState(false);
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setError(null);
-                setIsLoading(true);
-                try {
-                    await onLogin(password);
-                } catch (err) {
-                    setError(err.message);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            return React.createElement('div', { className: "fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100]", onClick: onClose },
-                React.createElement('div', { className: "bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm", onClick: e => e.stopPropagation() },
-                    React.createElement('h2', { className: "text-xl font-semibold text-purple-400 mb-4" }, "管理者ログイン"),
-                    error && React.createElement('p', { className: "text-red-400 mb-4" }, error),
-                    React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4" },
-                        React.createElement('input', { type: "password", value: password, onChange: e => setPassword(e.target.value), required: true, placeholder: "パスワード", className: "w-full p-2 bg-slate-700 rounded" }),
-                        React.createElement('button', { type: "submit", disabled: isLoading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, isLoading ? React.createElement(LoadingSpinner, {size: 'sm'}) : 'ログイン')
-                    )
-                )
-            );
-        };
+  const handleRefine = async () => {
+    if (!originalContent.trim()) return;
+    setStatus({ loading: true, error: null, success: null });
+    try {
+      const res = await fetch('/api/refine-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalContent }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによる推敲に失敗しました。'); }
+      const data = await res.json();
+      setSummary(data.refinedText);
+      setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
+    } catch (err) {
+      setStatus({ loading: false, error: err.message, success: null });
+    }
+  };
 
-        const PostForm = ({ onPostAdded }) => {
-          const [url, setUrl] = useState('');
-          const [originalContent, setOriginalContent] = useState('');
-          const [summary, setSummary] = useState('');
-          const [status, setStatus] = useState({ loading: false, error: null, success: null });
-          const [previewData, setPreviewData] = useState(null);
-          const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-          const debounceTimeout = useRef(null);
-          const fetchPreview = useCallback(async (urlToFetch) => {
-              const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-              if (isDev) console.log('プレビュー取得開始:', urlToFetch);
-              setIsPreviewLoading(true);
-              setPreviewData(null);
-              try {
-                  const res = await fetch(`/api/preview?url=${encodeURIComponent(urlToFetch)}`);
-                  if (isDev) console.log('プレビューAPI応答:', res.status, res.ok);
-                  if (!res.ok) {
-                      const err = await res.json().catch(() => ({ error: 'プレビューを取得できませんでした。' }));
-                      throw new Error(err.error);
-                  }
-                  const data = await res.json();
-                  if (isDev) console.log('プレビューデータ:', data);
-                  setPreviewData(data);
-                  // summaryが空の場合のみ自動設定
-                  setSummary(prev => {
-                      if (!prev.trim() && data.description && data.description !== '説明なし') {
-                          if (isDev) console.log('自動的にsummaryを設定:', data.description);
-                          return data.description;
-                      }
-                      return prev;
-                  });
-              } catch (err) {
-                  console.warn('プレビュー取得エラー:', err.message);
-              } finally {
-                  setIsPreviewLoading(false);
-              }
-          }, []); // 依存配列を空にして無限ループを防ぐ
-          const handleUrlChange = (e) => {
-              const newUrl = e.target.value;
-              setUrl(newUrl);
-              clearTimeout(debounceTimeout.current);
-              setPreviewData(null);
-              const urlRegex = /(https?:\/\/[^\s]+)/;
-              if (urlRegex.test(newUrl)) {
-                  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                      console.log('URLプレビュー取得開始:', newUrl);
-                  }
-                  debounceTimeout.current = setTimeout(() => {
-                      fetchPreview(newUrl);
-                  }, 800);
-              } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                  console.log('無効なURL形式:', newUrl);
-              }
-          };
-          const handleRefine = async () => {
-              if (!originalContent.trim()) return;
-              setStatus({ loading: true, error: null, success: null });
-              try {
-                  const res = await fetch('/api/refine-content', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ originalContent }),
-                  });
-                  if (!res.ok) { 
-                      const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); 
-                      throw new Error(err.message || 'AIによる推敲に失敗しました。'); 
-                  }
-                  const data = await res.json();
-                  setSummary(data.refinedText);
-                  setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
-              } catch (err) {
-                  setStatus({ loading: false, error: err.message, success: null });
-              }
-          };
-          const handleSubmit = async (e) => {
-              e.preventDefault();
-              if (!url.trim() || !summary.trim()) {
-                  setStatus({ loading: false, error: 'URLと共有する内容は必須です。', success: null });
-                  return;
-              }
-              setStatus({ loading: true, error: null, success: null });
-              try {
-                  const res = await fetch('/api/create-post', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url, summary, originalContent }),
-                  });
-                  if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
-                  const newPost = await res.json();
-                  const labelsText = newPost.post?.labels?.length > 0 
-                      ? ` 自動生成されたラベル: ${newPost.post.labels.join(', ')}` 
-                      : '';
-                  setStatus({ loading: false, error: null, success: `投稿が完了しました！${labelsText}` });
-                  setUrl('');
-                  setOriginalContent('');
-                  setSummary('');
-                  setPreviewData(null);
-                  onPostAdded(newPost);
-              } catch (err) {
-                  setStatus({ loading: false, error: err.message, success: null });
-              }
-          };
-          return React.createElement('form', { onSubmit: handleSubmit, className: "p-6 bg-slate-800 rounded-xl space-y-4" },
-            React.createElement('h2', { className: "text-2xl font-semibold text-purple-400" }, "発見を共有"),
-            status.error && React.createElement('p', { className: "text-red-400" }, status.error),
-            status.success && React.createElement('p', { className: "text-green-400" }, status.success),
-            React.createElement('div', null,
-                React.createElement('label', { htmlFor: "url" }, "URL *"),
-                React.createElement('input', { type: "url", id: "url", value: url, onChange: handleUrlChange, required: true, className: "w-full p-2 bg-slate-700 rounded", placeholder:"https://example.com" })
-            ),
-            isPreviewLoading && React.createElement('div', { className: 'flex justify-center p-4' }, React.createElement(LoadingSpinner, { size: 'md' })),
-            React.createElement(UrlPreview, { data: previewData, onClear: () => setPreviewData(null) }),
-            React.createElement('div', null,
-                React.createElement('label', { htmlFor: "originalContent" }, "元の投稿本文 (任意)"),
-                React.createElement('textarea', { id: "originalContent", value: originalContent, onChange: e => setOriginalContent(e.target.value), rows: 3, className: "w-full p-2 bg-slate-700 rounded" }),
-                React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || !originalContent.trim(), className: "mt-2 px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50 text-sm" }, status.loading ? React.createElement(LoadingSpinner, { size: 'sm' }) : 'AIに内容を整えてもらう')
-            ),
-            React.createElement('div', null,
-                React.createElement('label', { htmlFor: "summary" }, "共有する内容 *"),
-                React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), required: true, rows: 4, className: "w-full p-2 bg-slate-700 rounded" })
-            ),
-            React.createElement('button', { type: "submit", disabled: status.loading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, status.loading ? React.createElement(LoadingSpinner, null) : '投稿する')
-          );
-        };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!url.trim() || !summary.trim()) {
+      setStatus({ loading: false, error: 'URLと共有する内容は必須です。', success: null });
+      return;
+    }
+    setStatus({ loading: true, error: null, success: null });
+    try {
+      const labelsRes = await fetch('/api/analyze-labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: summary }),
+      });
+      if (!labelsRes.ok) { const err = await labelsRes.json().catch(() => ({message: 'AIによるラベル分析に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによるラベル分析に失敗しました。'); }
+      const { labels } = await labelsRes.json();
 
-        const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
-            const [showComments, setShowComments] = useState(false);
-            const [comments, setComments] = useState([]);
-            const [newCommentContent, setNewCommentContent] = useState('');
-            const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
-            const [previewData, setPreviewData] = useState(null);
-            const [previewLoading, setPreviewLoading] = useState(false);
-            const incrementViewCount = async () => {
-                const lastIncrementKey = `lastIncrement_${post.id}`;
-                const lastIncrement = localStorage.getItem(lastIncrementKey);
-                const now = Date.now();
-                const cooldownPeriod = 5 * 60 * 1000;
-                if (lastIncrement && (now - parseInt(lastIncrement)) < cooldownPeriod) {
-                    return;
-                }
-                try {
-                    const res = await fetch('/api/increment-view-count', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ postId: post.id }),
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.post) {
-                            localStorage.setItem(lastIncrementKey, now.toString());
-                            onPostUpdated(data.post);
-                        }
-                    } else if (res.status !== 429) {
-                        console.error('閲覧数の更新に失敗しました:', res.status);
-                    }
-                } catch (err) {
-                    console.error('Failed to increment view count:', err);
-                }
-            };
+      const postRes = await fetch('/api/create-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, summary, labels }),
+      });
+      if (!postRes.ok) { const err = await postRes.json().catch(() => ({message: '投稿の保存に失敗しました。詳細エラー不明'})); throw new Error(err.message || '投稿の保存に失敗しました。'); }
+      const { post } = await postRes.json();
 
-            // プレビューを取得する関数
-            const fetchPostPreview = useCallback(async () => {
-                if (previewData || previewLoading) return; // 既に取得済みまたは読み込み中の場合はスキップ
-                
-                setPreviewLoading(true);
-                try {
-                    const res = await fetch(`/api/preview?url=${encodeURIComponent(post.url)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        setPreviewData(data);
-                    }
-                } catch (err) {
-                    console.warn('投稿プレビュー取得エラー:', err.message);
-                } finally {
-                    setPreviewLoading(false);
-                }
-            }, [post.url, previewData, previewLoading]);
+      onPostAdded(post);
+      setUrl('');
+      setOriginalContent('');
+      setSummary('');
+      setStatus({ loading: false, error: null, success: '投稿が成功しました！' });
+    } catch (err) {
+      setStatus({ loading: false, error: err.message, success: null });
+    }
+  };
 
-            // コンポーネントマウント時にプレビューを自動取得（少し遅延を入れてパフォーマンス向上）
-            useEffect(() => {
-                const timer = setTimeout(() => {
-                    fetchPostPreview();
-                }, Math.random() * 1000 + 500); // 500-1500msのランダム遅延
+  return React.createElement('form', { onSubmit: handleSubmit, className: "p-6 bg-slate-800 rounded-xl space-y-4" },
+    React.createElement('h2', { className: "text-2xl font-semibold text-purple-400" }, "発見を共有"),
+    status.error && React.createElement('p', { className: "text-red-400" }, status.error),
+    status.success && React.createElement('p', { className: "text-green-400" }, status.success),
+    // URL入力
+    React.createElement('div', null,
+        React.createElement('label', { htmlFor: "url" }, "URL *"),
+        React.createElement('input', { type: "url", id: "url", value: url, onChange: e => setUrl(e.target.value), required: true, className: "w-full p-2 bg-slate-700 rounded" })
+    ),
+    // 原文入力
+    React.createElement('div', null,
+        React.createElement('label', { htmlFor: "originalContent" }, "元の投稿本文 (任意)"),
+        React.createElement('textarea', { id: "originalContent", value: originalContent, onChange: e => setOriginalContent(e.target.value), rows: 3, className: "w-full p-2 bg-slate-700 rounded" }),
+        React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || !originalContent.trim(), className: "px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50" }, status.loading ? '処理中...' : 'AIに内容を整えてもらう')
+    ),
+    // 共有内容入力
+    React.createElement('div', null,
+        React.createElement('label', { htmlFor: "summary" }, "共有する内容 *"),
+        React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), required: true, rows: 4, className: "w-full p-2 bg-slate-700 rounded" })
+    ),
+    // 投稿ボタン
+    React.createElement('button', { type: "submit", disabled: status.loading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, status.loading ? React.createElement(LoadingSpinner, null) : '投稿する')
+  );
+};
 
-                return () => clearTimeout(timer);
-            }, [fetchPostPreview]); // fetchPostPreviewが変わった時のみ再実行
-            const fetchComments = useCallback(async () => {
-                setCommentStatus({ loading: true, error: null });
-                try {
-                    const res = await fetch(`/api/get-comments?postId=${post.id}`);
-                    if (!res.ok) throw new Error('コメントの取得に失敗しました。');
-                    const data = await res.json();
-                    setComments(data.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
-                    setCommentStatus({ loading: false, error: null });
-                } catch (err) {
-                    setCommentStatus({ loading: false, error: err.message });
-                }
-            }, [post.id]);
-            useEffect(() => {
-                if (showComments) {
-                    fetchComments();
-                }
-            }, [showComments, fetchComments]);
-            const handleAddComment = async (e) => {
-                e.preventDefault();
-                if (!newCommentContent.trim()) return;
-                setCommentStatus({ loading: true, error: null });
-                try {
-                    const res = await fetch('/api/add-comment', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ postId: post.id, commentContent: newCommentContent }),
-                    });
-                    if (!res.ok) throw new Error('コメントの追加に失敗しました。');
-                    const data = await res.json();
-                    setComments(prevComments => [...prevComments, data.comment].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
-                    setNewCommentContent('');
-                    setCommentStatus({ loading: false, error: null });
-                } catch (err) {
-                    setCommentStatus({ loading: false, error: err.message });
-                }
-            };
-            const handleDeleteComment = async (commentId) => {
-                if (!window.confirm("このコメントを本当に削除しますか？")) return;
-                try {
-                    const token = localStorage.getItem('admin-token');
-                    const res = await fetch('/api/delete-comment', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ postId: post.id, commentId }),
-                    });
-                    if (!res.ok) { const err = await res.json(); throw new Error(err.message || 'コメントの削除に失敗しました。'); }
-                    setComments(prevComments => prevComments.filter(c => c.id !== commentId));
-                } catch (err) {
-                    alert(err.message);
-                }
-            };
-            return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
-                isAdmin && React.createElement('button', {
-                    onClick: () => onDelete(post.id),
-                    className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
-                }, "削除"),
-                React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', {
-                    href: post.url,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                    className: "hover:underline",
-                    onClick: incrementViewCount
-                }, post.url)),
-                React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
-                
-                // プレビュー表示エリア（常時表示）
-                React.createElement('div', { className: "my-3" },
-                    previewLoading && React.createElement('div', { className: 'flex items-center justify-center p-3 bg-slate-700/20 rounded border-l-4 border-purple-500 pl-4' },
-                        React.createElement(LoadingSpinner, { size: 'sm' }),
-                        React.createElement('span', { className: 'ml-2 text-sm text-slate-400' }, 'プレビュー読み込み中...')
-                    ),
-                    !previewLoading && previewData && React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
-                        React.createElement(UrlPreview, { 
-                            data: previewData, 
-                            onClear: () => setPreviewData(null)
-                        })
-                    )
-                ),
-                React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
-                React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
-                React.createElement('p', { className: "text-xs text-slate-500 mt-1" }, `閲覧数: ${post.viewCount || 0}`),
-                React.createElement('button', {
-                    onClick: () => setShowComments(!showComments),
-                    className: "mt-4 px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-                }, showComments ? 'コメントを非表示' : `コメントを表示 (${comments.length})`),
-                showComments && React.createElement('div', { className: "mt-4 pt-4 border-t border-slate-700" },
-                    React.createElement('h4', { className: "text-lg font-semibold text-slate-300 mb-3" }, "コメント"),
-                    commentStatus.loading && React.createElement(LoadingSpinner, { size: 'sm' }),
-                    commentStatus.error && React.createElement('p', { className: "text-red-400" }, `コメントのエラー: ${commentStatus.error}`),
-                    comments.length === 0 && !commentStatus.loading && React.createElement('p', { className: "text-slate-500" }, "コメントはまだありません。"),
-                    React.createElement('div', { className: "space-y-3" },
-                        comments.map(comment => React.createElement('div', { key: comment.id, className: "bg-slate-700 p-3 rounded relative" },
-                            isAdmin && React.createElement('button', {
-                                onClick: () => handleDeleteComment(comment.id),
-                                className: "absolute top-1 right-1 px-2 py-0.5 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
-                            }, "削除"),
-                            React.createElement('p', { className: "text-slate-200 whitespace-pre-wrap" }, comment.commentContent),
-                            React.createElement('p', { className: "text-xs text-slate-400 mt-1" }, new Date(comment.createdAt).toLocaleString('ja-JP'))
-                        ))
-                    ),
-                    React.createElement('form', { onSubmit: handleAddComment, className: "mt-4 flex space-x-2" },
-                        React.createElement('input', { type: "text", value: newCommentContent, onChange: e => setNewCommentContent(e.target.value), placeholder: "コメントを追加...", className: "flex-grow p-2 bg-slate-700 rounded" }),
-                        React.createElement('button', { type: "submit", disabled: commentStatus.loading, className: "px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50" }, "送信")
-                    )
-                )
-            );
-        };
+// -- 投稿一覧 (PostList & PostCard) --
+const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [newCommentContent, setNewCommentContent] = useState('');
+    const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
 
-        const PostList = ({ posts, isAdmin, onDelete, onPostUpdated }) => {
-          return React.createElement('div', { className: "space-y-8" },
-            posts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete, onPostUpdated: onPostUpdated }))
-          );
-        };
-
-        const LabelCloud = ({ labels, activeFilter, onSelect }) => {
-            if (labels.length === 0) return null;
-            return React.createElement('div', { className: "mb-8 p-4 bg-slate-800/60 rounded-lg" },
-                React.createElement('h3', { className: "text-sm font-semibold text-slate-300 mb-3" }, "ラベルで絞り込み:"),
-                React.createElement('div', { className: "flex flex-wrap gap-2 items-center" },
-                    React.createElement('button', {
-                        onClick: () => onSelect(null),
-                        className: `px-3 py-1.5 text-xs rounded-full ${!activeFilter ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
-                    }, "すべて表示"),
-                    labels.map(label => React.createElement('button', {
-                        key: label,
-                        onClick: () => onSelect(label),
-                        className: `px-3 py-1.5 text-xs rounded-full ${activeFilter === label ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
-                    }, label))
-                )
-            );
-        };
-        
-        const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
-            return React.createElement('header', { className: "bg-slate-800 p-4 flex justify-between items-center" },
-                React.createElement('h1', { className: "text-3xl font-bold text-purple-400 text-center" }, APP_TITLE),
-                isAdmin
-                    ? React.createElement('button', { onClick: onLogoutClick, className: "px-4 py-2 bg-red-600 text-white rounded" }, "管理者モード終了")
-                    : React.createElement('button', { onClick: onLoginClick, className: "px-4 py-2 bg-amber-500 text-white rounded" }, "管理者モード")
-            );
-        };
-
-        const App = () => {
-          const [allPosts, setAllPosts] = useState(null);
-          const [error, setError] = useState(null);
-          const [isAdmin, setIsAdmin] = useState(false);
-          const [showLogin, setShowLogin] = useState(false);
-          const [activeTab, setActiveTab] = useState('view');
-          const [activeLabelFilter, setActiveLabelFilter] = useState(null);
-          const [sortBy, setSortBy] = useState('createdAt');
-          
-          // JWT トークンの有効性をチェック
-          const checkTokenValidity = () => {
-            const token = localStorage.getItem('admin-token');
-            if (!token) return false;
-            
+    // 閲覧数をインクリメント
+    useEffect(() => {
+        const incrementViewCount = async () => {
             try {
-              // JWT トークンをデコード（検証なし）
-              const payload = JSON.parse(atob(token.split('.')[1]));
-              const now = Math.floor(Date.now() / 1000);
-              
-              if (payload.exp && payload.exp < now) {
-                console.log('Token expired, logging out');
-                handleLogout();
-                return false;
-              }
-              return true;
-            } catch (error) {
-              console.error('Invalid token format', error);
-              handleLogout();
-              return false;
-            }
-          };
-          
-          // ページロード時にトークンの有効性をチェック
-          useEffect(() => {
-            const token = localStorage.getItem('admin-token');
-            if (token && checkTokenValidity()) {
-              setIsAdmin(true);
-            }
-          }, []);
-          
-          const fetchPosts = useCallback(async (currentSortBy) => {
-            setError(null);
-            setAllPosts(null);
-            try {
-              const res = await fetch(`/api/get-posts?sortBy=${currentSortBy}`);
-              if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
-              const data = await res.json();
-              setAllPosts(data);
+                const res = await fetch('/api/increment-view-count', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId: post.id }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.post) {
+                        onPostUpdated(data.post); // 更新された投稿データをAppコンポーネントに伝える
+                    }
+                }
             } catch (err) {
-              setError(err.message);
+                console.error('Failed to increment view count:', err);
             }
-          }, []);
-          useEffect(() => {
-            const token = localStorage.getItem('admin-token');
-            if (token) setIsAdmin(true);
-            fetchPosts(sortBy);
-          }, [fetchPosts, sortBy]);
-          const filteredPosts = useMemo(() => {
-            if (!allPosts) return [];
-            if (!activeLabelFilter) return allPosts;
-            return allPosts.filter(post => post.labels.includes(activeLabelFilter));
-          }, [allPosts, activeLabelFilter]);
-          const uniqueLabels = useMemo(() => {
-            if (!allPosts) return [];
-            const labelSet = new Set();
-            allPosts.forEach(post => post.labels.forEach(label => labelSet.add(label)));
-            return Array.from(labelSet).sort((a,b) => a.localeCompare(b, 'ja-JP'));
-          }, [allPosts]);
-          const handlePostAdded = (newPost) => {
-            fetchPosts(sortBy);
-            setActiveTab('view');
-          };
-          const handlePostUpdated = (updatedPost) => {
-            setAllPosts(currentPosts => {
-              if (!currentPosts) return [];
-              const newPosts = currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
-              if(sortBy === 'viewCount') {
-                  newPosts.sort((a,b) => (b.viewCount || 0) - (a.viewCount || 0));
-              }
-              return newPosts;
-            });
-          };
-          const handleLogin = async (password) => {
-              try {
-                  // パスワードの前後の空白を削除とサニタイズ
-                  const trimmedPassword = password.trim();
-                  
-                  // 基本的な入力検証
-                  if (trimmedPassword.length > 100) {
-                      throw new Error('パスワードが長すぎます。');
-                  }
-                  
-                  const res = await fetch('/api/admin-login', {
-                      method: 'POST',
-                      headers: { 
-                          'Content-Type': 'application/json',
-                          // CSRF 保護のための追加ヘッダー
-                          'X-Requested-With': 'XMLHttpRequest'
-                      },
-                      body: JSON.stringify({ password: trimmedPassword })
-                  });
-                  
-                  console.log('API Response status:', res.status);
-                  
-                  if (!res.ok) { 
-                      let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
-                      try {
-                          const err = await res.json();
-                          errorMessage = err.message || errorMessage;
-                      } catch (parseError) {
-                          console.error('Response parsing error:', parseError);
-                          const responseText = await res.text();
-                          console.error('Response text:', responseText);
-                          errorMessage = `サーバーエラー: ${errorMessage}`;
-                      }
-                      throw new Error(errorMessage);
-                  }
-                  
-                  const data = await res.json();
-                  if (!data.token) {
-                      throw new Error('トークンが返されませんでした。');
-                  }
-                  
-                  localStorage.setItem('admin-token', data.token);
-                  setIsAdmin(true);
-                  setShowLogin(false);
-              } catch (error) {
-                  console.error('Login error:', error);
-                  throw error;
-              }
-          };
-          const handleLogout = () => {
-              localStorage.removeItem('admin-token');
-              setIsAdmin(false);
-          };
-          const handleDeletePost = async (postId) => {
-              if (!window.confirm("この投稿を本当に削除しますか？")) return;
-              try {
-                  const token = localStorage.getItem('admin-token');
-                  const res = await fetch('/api/delete-post', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify({ postId }),
-                  });
-                  if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
-                  fetchPosts(sortBy);
-              } catch (err) {
-                  alert(`削除に失敗しました: ${err.message}`);
-              }
-          };
-          const TabButton = ({ label, isActive, onClick }) => {
-              const baseClasses = "px-6 py-2 text-lg font-medium rounded-t-lg transition-colors duration-200 focus:outline-none";
-              const activeClasses = "bg-slate-800 text-purple-400";
-              const inactiveClasses = "bg-slate-700 text-slate-400 hover:bg-slate-600";
-              return React.createElement('button', { onClick, className: `${baseClasses} ${isActive ? activeClasses : inactiveClasses}` }, label);
-          };
-          const renderContent = () => {
-            if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
-            if (allPosts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
-            const noPostsAfterFilter = filteredPosts.length === 0 && activeLabelFilter;
-            const noPostsAtAll = allPosts.length === 0;
-            const viewTabContent = React.createElement(React.Fragment, null,
-                !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
-                React.createElement('div', { className: 'flex justify-end mb-4' },
-                  React.createElement('select', {
-                    value: sortBy,
-                    onChange: (e) => setSortBy(e.target.value),
-                    className: 'bg-slate-700 text-slate-200 rounded px-3 py-1.5 text-sm'
-                  },
-                    React.createElement('option', { value: 'createdAt' }, '新着順'),
-                    React.createElement('option', { value: 'viewCount' }, '閲覧数順')
-                  )
-                ),
-                filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
-                noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
-                noPostsAtAll && !activeLabelFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
-            );
-            const createTabContent = React.createElement(PostForm, { onPostAdded: handlePostAdded });
-            return React.createElement(React.Fragment, null,
-                React.createElement('div', { className: "flex space-x-2 border-b border-slate-700" },
-                    React.createElement(TabButton, { label: "投稿一覧", isActive: activeTab === 'view', onClick: () => setActiveTab('view') }),
-                    React.createElement(TabButton, { label: "新規投稿", isActive: activeTab === 'create', onClick: () => setActiveTab('create') })
-                ),
-                React.createElement('div', { className: "p-6 bg-slate-800 rounded-b-xl" },
-                    activeTab === 'view' ? viewTabContent : createTabContent
-                )
-            );
-          };
-          return React.createElement('div', { className: "min-h-screen bg-slate-900 text-slate-100" },
-            React.createElement(Header, { isAdmin: isAdmin, onLoginClick: () => setShowLogin(true), onLogoutClick: handleLogout }),
-            React.createElement('main', { className: "container mx-auto px-4 py-8" },
-              React.createElement('div', { className: "max-w-3xl mx-auto" }, renderContent())
-            ),
-            React.createElement('footer', { className: "text-center py-6 text-sm text-slate-500" }, `© ${new Date().getFullYear()} ${APP_TITLE}`),
-            showLogin && React.createElement(AdminLoginModal, { onLogin: handleLogin, onClose: () => setShowLogin(false) })
-          );
         };
+        incrementViewCount();
+    }, [post.id, onPostUpdated]);
 
-        const rootElement = document.getElementById('root');
-        if (!rootElement) throw new Error("Could not find root element");
-        const root = ReactDOM.createRoot(rootElement);
-        // React.StrictModeを正しく参照するためにReactを先頭につけます
-        root.render(React.createElement(React.StrictMode, null, React.createElement(App, null)));
-    </script>
+    const fetchComments = useCallback(async () => {
+        setCommentStatus({ loading: true, error: null });
+        try {
+            const res = await fetch(`/api/get-comments?postId=${post.id}`);
+            if (!res.ok) throw new Error('コメントの取得に失敗しました。');
+            const data = await res.json();
+            setComments(data.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))); // 古い順にソート
+            setCommentStatus({ loading: false, error: null });
+        } catch (err) {
+            console.error('Failed to fetch comments:', err);
+            setCommentStatus({ loading: false, error: err.message });
+        }
+    }, [post.id]);
+
+    useEffect(() => {
+        if (showComments) {
+            fetchComments();
+        }
+    }, [showComments, fetchComments]);
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+        if (!newCommentContent.trim()) return;
+
+        setCommentStatus({ loading: true, error: null });
+        try {
+            const res = await fetch('/api/add-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId: post.id, commentContent: newCommentContent }),
+            });
+            if (!res.ok) throw new Error('コメントの追加に失敗しました。');
+            const data = await res.json();
+            setComments(prevComments => [...prevComments, data.comment].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
+            setNewCommentContent('');
+            setCommentStatus({ loading: false, error: null });
+        } catch (err) {
+            console.error('Failed to add comment:', err);
+            setCommentStatus({ loading: false, error: err.message });
+        }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!window.confirm("このコメントを本当に削除しますか？")) return;
+        try {
+            const token = localStorage.getItem('admin-token');
+            const res = await fetch('/api/delete-comment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ postId: post.id, commentId }),
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({ message: 'コメントの削除に失敗しました。詳細エラー不明' })); throw new Error(err.message || 'コメントの削除に失敗しました。'); }
+            setComments(prevComments => prevComments.filter(c => c.id !== commentId));
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
+        isAdmin && React.createElement('button', {
+            onClick: () => onDelete(post.id),
+            className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
+        }, "削除"),
+        React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', { href: post.url, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }, post.url)),
+        React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
+        React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
+        React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
+        React.createElement('p', { className: "text-xs text-slate-500 mt-1" }, `閲覧数: ${post.viewCount || 0}`),
+
+        React.createElement('button', {
+            onClick: () => setShowComments(!showComments),
+            className: "mt-4 px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
+        }, showComments ? 'コメントを非表示' : `コメントを表示 (${comments.length})`),
+
+        showComments && React.createElement('div', { className: "mt-4 pt-4 border-t border-slate-700" },
+            React.createElement('h4', { className: "text-lg font-semibold text-slate-300 mb-3" }, "コメント"),
+            commentStatus.loading && React.createElement(LoadingSpinner, { size: 'sm' }),
+            commentStatus.error && React.createElement('p', { className: "text-red-400" }, `コメントの読み込みエラー: ${commentStatus.error}`),
+            comments.length === 0 && !commentStatus.loading && !commentStatus.error && React.createElement('p', { className: "text-slate-500" }, "まだコメントはありません。"),
+            React.createElement('div', { className: "space-y-3" },
+                comments.map(comment => React.createElement('div', { key: comment.id, className: "bg-slate-700 p-3 rounded relative" },
+                    isAdmin && React.createElement('button', {
+                        onClick: () => handleDeleteComment(comment.id),
+                        className: "absolute top-1 right-1 px-2 py-0.5 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
+                    }, "削除"),
+                    React.createElement('p', { className: "text-slate-200 whitespace-pre-wrap" }, comment.commentContent),
+                    React.createElement('p', { className: "text-xs text-slate-400 mt-1" }, new Date(comment.createdAt).toLocaleString('ja-JP'))
+                ))
+            ),
+            React.createElement('form', { onSubmit: handleAddComment, className: "mt-4 flex space-x-2" },
+                React.createElement('input', { type: "text", value: newCommentContent, onChange: e => setNewCommentContent(e.target.value), placeholder: "コメントを追加...", className: "flex-grow p-2 bg-slate-700 rounded" }),
+                React.createElement('button', { type: "submit", disabled: commentStatus.loading, className: "px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50" }, "送信")
+            )
+        )
+    );
+};
+
+const PostList = ({ posts, isAdmin, onDelete, onPostUpdated }) => {
+  const sortedPosts = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  
+  return React.createElement('div', { className: "space-y-8" },
+    sortedPosts.map(post => React.createElement(PostCard, { key: post.id, post: post, isAdmin: isAdmin, onDelete: onDelete, onPostUpdated: onPostUpdated }))
+  );
+};
+
+// -- ★★★ 新機能：ラベル絞り込みUI (LabelCloud) ★★★ --
+const LabelCloud = ({ labels, activeFilter, onSelect }) => {
+    if (labels.length === 0) return null;
+
+    return React.createElement('div', { className: "mb-8 p-4 bg-slate-800/60 rounded-lg" },
+        React.createElement('h3', { className: "text-sm font-semibold text-slate-300 mb-3" }, "ラベルで絞り込み:"),
+        React.createElement('div', { className: "flex flex-wrap gap-2 items-center" },
+            React.createElement('button', {
+                onClick: () => onSelect(null), // nullを渡してフィルターを解除
+                className: `px-3 py-1.5 text-xs rounded-full ${!activeFilter ? 'bg-sky-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
+            }, "すべて表示"),
+            labels.map(label => React.createElement('button', {
+                key: label,
+                onClick: () => onSelect(label),
+                className: `px-3 py-1.5 text-xs rounded-full ${activeFilter === label ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`
+            }, label))
+        )
+    );
+};
+
+
+// -- ヘッダー --
+const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
+    return React.createElement('header', { className: "bg-slate-800 p-4 flex justify-between items-center" },
+        React.createElement('h1', { className: "text-3xl font-bold text-purple-400 text-center" }, APP_TITLE),
+        isAdmin 
+            ? React.createElement('button', { onClick: onLogoutClick, className: "px-4 py-2 bg-red-600 text-white rounded" }, "管理者モード終了")
+            : React.createElement('button', { onClick: onLoginClick, className: "px-4 py-2 bg-amber-500 text-white rounded" }, "管理者モード")
+    );
+};
+
+// -- メインアプリケーション (App) --
+const App = () => {
+  const [allPosts, setAllPosts] = useState(null); // DBから取得した全ての投稿
+  const [error, setError] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [activeTab, setActiveTab] = useState('view'); // 'view' or 'create'
+  
+  // ★★★ 新機能：アクティブなフィルターを管理するState ★★★
+  const [activeLabelFilter, setActiveLabelFilter] = useState(null);
+
+  // 初回にトークンを確認 & 投稿を取得
+  useEffect(() => {
+    const token = localStorage.getItem('admin-token');
+    if (token) setIsAdmin(true);
+    
+    const fetchPosts = async () => {
+      try {
+        const res = await fetch('/api/get-posts');
+        if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
+        const data = await res.json();
+        setAllPosts(data);
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+    fetchPosts();
+  }, []);
+
+  // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
+  const filteredPosts = useMemo(() => {
+    if (!allPosts) return [];
+    if (!activeLabelFilter) {
+      return allPosts; // フィルターがなければ全ての投稿を返す
+    }
+    return allPosts.filter(post => post.labels.includes(activeLabelFilter));
+  }, [allPosts, activeLabelFilter]);
+
+  // ★★★ 新機能：全てのユニークなラベルを計算 ★★★
+  const uniqueLabels = useMemo(() => {
+    if (!allPosts) return [];
+    const labelSet = new Set();
+    allPosts.forEach(post => post.labels.forEach(label => labelSet.add(label)));
+    return Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ja-JP'));
+  }, [allPosts]);
+
+
+  const handlePostAdded = (newPost) => {
+    setAllPosts(currentPosts => [newPost, ...(currentPosts || [])]);
+    setActiveTab('view'); // 投稿後は一覧表示に切り替える
+  };
+
+  const handlePostUpdated = (updatedPost) => {
+    setAllPosts(currentPosts => {
+      if (!currentPosts) return [];
+      return currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p);
+    });
+  };
+
+  const handleLogin = async (password) => {
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({message: 'ログインに失敗しました。詳細エラー不明'}));
+        throw new Error(errData.message || 'ログインに失敗しました。');
+    }
+    const { token } = await res.json();
+    localStorage.setItem('admin-token', token);
+    setIsAdmin(true);
+    setShowLogin(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin-token');
+    setIsAdmin(false);
+  };
+  
+  const handleDeletePost = async (postId) => {
+      if (!window.confirm("この投稿を本当に削除しますか？")) return;
+      try {
+          const token = localStorage.getItem('admin-token');
+          const res = await fetch('/api/delete-post', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ postId }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({message: '削除に失敗しました。詳細エラー不明'})); throw new Error(err.message || '削除に失敗しました。');}
+          // 成功したら投稿一覧を更新
+          setAllPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
+      } catch (err) {
+          alert(err.message);
+      }
+  };
+
+  const TabButton = ({ label, isActive, onClick }) => {
+      const baseClasses = "px-6 py-2 text-lg font-medium rounded-t-lg transition-colors duration-200 focus:outline-none";
+      const activeClasses = "bg-slate-800 text-purple-400";
+      const inactiveClasses = "bg-slate-700 text-slate-400 hover:bg-slate-600";
+      return React.createElement('button', { onClick, className: `${baseClasses} ${isActive ? activeClasses : inactiveClasses}` }, label);
+  };
+
+  const renderContent = () => {
+    if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
+    if (allPosts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
+    
+    const noPostsAfterFilter = filteredPosts.length === 0 && activeLabelFilter;
+    const noPostsAtAll = allPosts.length === 0;
+
+    const viewTabContent = React.createElement(React.Fragment, null,
+        !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
+        filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
+        noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
+        noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
+    );
+
+    const createTabContent = React.createElement(PostForm, { onPostAdded: handlePostAdded });
+
+    return React.createElement(React.Fragment, null,
+        React.createElement('div', { className: "flex space-x-2 border-b border-slate-700" },
+            React.createElement(TabButton, { label: "投稿一覧", isActive: activeTab === 'view', onClick: () => setActiveTab('view') }),
+            React.createElement(TabButton, { label: "新規投稿", isActive: activeTab === 'create', onClick: () => setActiveTab('create') })
+        ),
+        React.createElement('div', { className: "p-6 bg-slate-800 rounded-b-xl" },
+            activeTab === 'view' ? viewTabContent : createTabContent
+        )
+    );
+  };
+
+  return React.createElement('div', { className: "min-h-screen bg-slate-900 text-slate-100" },
+    React.createElement(Header, { isAdmin: isAdmin, onLoginClick: () => setShowLogin(true), onLogoutClick: handleLogout }),
+    React.createElement('main', { className: "container mx-auto px-4 py-8" },
+      React.createElement('div', { className: "max-w-3xl mx-auto" }, renderContent())
+    ),
+    React.createElement('footer', { className: "text-center py-6 text-sm text-slate-500" }, `© ${new Date().getFullYear()} ${APP_TITLE}`),
+    showLogin && React.createElement(AdminLoginModal, { onLogin: handleLogin, onClose: () => setShowLogin(false) })
+  );
+};
+
+// -- ReactDOMでレンダリング --
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error("Could not find root element");
+const root = ReactDOM.createRoot(rootElement);
+root.render(React.createElement(StrictMode, null, React.createElement(App, null)));
+  </script>
 </body>
 </html>
