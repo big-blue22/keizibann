@@ -22,8 +22,10 @@ export default async function handler(request, response) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
+    console.log('API Key available:', !!apiKey);
     if (!apiKey) {
-      return response.status(500).json({ message: 'APIキーが設定されていません。' });
+      console.error('GEMINI_API_KEY is not set');
+      return response.status(500).json({ message: 'APIキーが設定されていません。管理者にお問い合わせください。' });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);

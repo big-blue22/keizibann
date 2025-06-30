@@ -11,6 +11,7 @@
         .line-clamp-2 {
             display: -webkit-box;
             -webkit-line-clamp: 2;
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
@@ -129,20 +130,23 @@
               }
           };
           const handleRefine = async () => {
+              if (!originalContent.trim()) return;
               setStatus({ loading: true, error: null, success: null });
               try {
                   const res = await fetch('/api/refine-content', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ originalContent, url }),
+                      body: JSON.stringify({ originalContent }),
                   });
-                  if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+                  if (!res.ok) { 
+                      const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); 
+                      throw new Error(err.message || 'AIによる推敲に失敗しました。'); 
+                  }
                   const data = await res.json();
-                  setSummary(data.summary);
+                  setSummary(data.refinedText);
+                  setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
               } catch (err) {
                   setStatus({ loading: false, error: err.message, success: null });
-              } finally {
-                  setStatus(s => ({ ...s, loading: false }));
               }
           };
           const handleSubmit = async (e) => {
@@ -179,7 +183,7 @@
             React.createElement('div', null,
                 React.createElement('label', { htmlFor: "originalContent" }, "元の投稿本文 (任意)"),
                 React.createElement('textarea', { id: "originalContent", value: originalContent, onChange: e => setOriginalContent(e.target.value), rows: 3, className: "w-full p-2 bg-slate-700 rounded" }),
-                React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || !originalContent.trim(), className: "px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50" }, status.loading ? '処理中...' : 'AIに内容を整えてもらう')
+                React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || !originalContent.trim(), className: "mt-2 px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50 text-sm" }, status.loading ? React.createElement(LoadingSpinner, { size: 'sm' }) : 'AIに内容を整えてもらう')
             ),
             React.createElement('div', null,
                 React.createElement('label', { htmlFor: "summary" }, "共有する内容 *"),
