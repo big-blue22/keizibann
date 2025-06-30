@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const POSTS_FILE = path.join(process.cwd(), 'data', 'posts.json');
+const VIEW_THROTTLE_MINUTES = 5; // 同じIPから同じ投稿への重複アクセス制限時間（分）
 
 // 開発環境用：ローカルファイルストレージ
 async function loadPostsLocal() {
@@ -24,6 +25,56 @@ function isKvAvailable() {
   return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
 }
 
+// IPアドレスを取得
+function getClientIP(request) {
+  return request.headers['x-forwarded-for'] || 
+         request.headers['x-real-ip'] || 
+         request.connection?.remoteAddress || 
+         'unknown';
+}
+
+// 重複アクセスチェック
+async function isDuplicateView(postId, clientIP) {
+  const key = `view_throttle:${postId}:${clientIP}`;
+  
+  if (isKvAvailable()) {
+    try {
+      const lastView = await kv.get(key);
+      if (lastView) {
+        const timeDiff = Date.now() - parseInt(lastView);
+        return timeDiff < (VIEW_THROTTLE_MINUTES * 60 * 1000);
+      }
+      // 新しいビューを記録
+      await kv.set(key, Date.now().toString(), { ex: VIEW_THROTTLE_MINUTES * 60 });
+      return false;
+    } catch (error) {
+      console.error('Error checking duplicate view:', error);
+      return false; // エラーの場合は制限しない
+    }
+  } else {
+    // 開発環境では簡易的な制限（メモリ上で管理）
+    if (!global.viewThrottle) {
+      global.viewThrottle = new Map();
+    }
+    
+    const lastView = global.viewThrottle.get(key);
+    if (lastView) {
+      const timeDiff = Date.now() - lastView;
+      if (timeDiff < (VIEW_THROTTLE_MINUTES * 60 * 1000)) {
+        return true;
+      }
+    }
+    
+    global.viewThrottle.set(key, Date.now());
+    // 古いエントリをクリーンアップ
+    setTimeout(() => {
+      global.viewThrottle.delete(key);
+    }, VIEW_THROTTLE_MINUTES * 60 * 1000);
+    
+    return false;
+  }
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     return response.status(405).json({ message: 'Method Not Allowed' });
@@ -33,6 +84,20 @@ export default async function handler(request, response) {
     const { postId } = request.body;
     if (!postId) {
       return response.status(400).json({ message: 'postIdが指定されていません。' });
+    }
+
+    // クライアントIPを取得
+    const clientIP = getClientIP(request);
+    console.log(`View count request from IP: ${clientIP} for post: ${postId}`);
+
+    // 重複アクセスチェック
+    const isDuplicate = await isDuplicateView(postId, clientIP);
+    if (isDuplicate) {
+      console.log(`Duplicate view blocked for IP: ${clientIP}, post: ${postId}`);
+      return response.status(429).json({ 
+        message: 'Too many requests. Please wait before viewing again.',
+        throttled: true 
+      });
     }
 
     if (isKvAvailable()) {

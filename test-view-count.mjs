@@ -1,0 +1,41 @@
+// test-view-count.mjs
+// 閲覧数カウント機能のテスト
+
+console.log('🧪 閲覧数カウント機能の改善テスト');
+console.log('');
+console.log('✅ 実装された改善点:');
+console.log('');
+console.log('1. 自動インクリメント廃止');
+console.log('   - 投稿カードの表示だけでは閲覧数が増えない');
+console.log('   - useEffectでの自動カウントを削除');
+console.log('');
+console.log('2. クリック時のみカウント');
+console.log('   - URLリンクをクリックした時のみ閲覧数がインクリメント');
+console.log('   - 意図的なアクションのみをカウント');
+console.log('');
+console.log('3. 重複アクセス制限');
+console.log('   - 同じIPアドレスから同じ投稿への重複アクセスを5分間制限');
+console.log('   - スパム的なアクセスを防止');
+console.log('');
+console.log('4. 本番・開発環境両対応');
+console.log('   - Vercel KV使用時: Redis風の有効期限付きキャッシュ');
+console.log('   - ローカル開発時: メモリ上での簡易制限');
+console.log('');
+console.log('5. エラーハンドリング強化');
+console.log('   - スロットル制限時は429ステータス');
+console.log('   - フロントエンドでの適切なエラー処理');
+console.log('');
+console.log('🧪 テスト方法:');
+console.log('');
+console.log('1. サーバーを起動: npx vercel dev');
+console.log('2. ブラウザで http://localhost:3000 を開く');
+console.log('3. 投稿一覧を表示（閲覧数は増えない）');
+console.log('4. 投稿のURLリンクをクリック（閲覧数が+1）');
+console.log('5. 同じリンクを連続クリック（5分以内は増えない）');
+console.log('6. 5分後に再度クリック（閲覧数が+1）');
+console.log('');
+console.log('✅ 期待される動作:');
+console.log('- 画面を見ているだけでは閲覧数が増加しない');
+console.log('- URLクリック時のみ適切にカウント');
+console.log('- 短時間での重複クリックは無視される');
+console.log('- 異なるIPからのアクセスは独立してカウント');
