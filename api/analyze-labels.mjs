@@ -20,28 +20,63 @@ export default async function handler(request, response) {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-        const prompt = `あなたは、テキストからAIモデルの名前を特定する専門家です。以下のコンテンツを分析し、言及されている具体的なAIモデル名（例: "GPT-4", "Claude 3", "Gemini 1.5 Pro"）のみを抽出してください。該当するモデル名がない場合は、空の配列 [] を返してください。結果は必ず日本語のJSON配列形式で、モデル名のみを格納して返してください。
+        const prompt = `あなたは技術コンテンツの分析専門家です。以下のコンテンツを分析して、含まれている技術要素を特定してください。
+
+【検出すべき要素（優先順位順）】
+1. AIモデル名（必須）: GPT-4, GPT-3.5, Claude, Gemini, ChatGPT, LLaMA, BERT など
+2. プログラミング言語: JavaScript, Python, TypeScript, Java, C++ など
+3. フレームワーク/ライブラリ: React, Vue.js, Django, Flask, Express など
+4. 技術分野: 機械学習, Web開発, データベース, クラウド など
+
+【重要】
+- AIモデルが言及されている場合は必ず含めてください
+- 具体的で正確な名前を使用してください
+- 日本語のラベルを優先してください
+- 結果はJSON配列で返してください
 
 分析するコンテンツ：
 ---
 ${content}
 ---
 
-抽出したAIモデル名 (JSON配列形式)：`;
+技術ラベル（JSON配列）:`;
 
         const result = await model.generateContent(prompt);
         let jsonStr = await result.response.text();
 
         // AIの応答からJSON部分だけを抽出する
-        const fenceRegex = /```(json)?\s*(.*)\s*```/s;
+        const fenceRegex = /```(?:json)?\s*(.*?)\s*```/s;
         const match = jsonStr.match(fenceRegex);
-        if (match && match[2]) {
-          jsonStr = match[2].trim();
+        if (match && match[1]) {
+          jsonStr = match[1].trim();
+        }
+        
+        // JSON以外の部分を除去
+        const jsonMatch = jsonStr.match(/\[.*\]/s);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0];
         }
 
         const labels = JSON.parse(jsonStr);
+        
+        // AIモデルが含まれているかチェック
+        const hasAiModel = labels.some(label => 
+          /gpt|claude|gemini|llama|bert|chatgpt|openai|anthropic|google|ai/i.test(label)
+        );
+        
+        if (!hasAiModel) {
+          // フォールバック検出
+          const contentLower = content.toLowerCase();
+          const aiModels = ['GPT-4', 'GPT-3.5', 'ChatGPT', 'Claude', 'Gemini', 'LLaMA', 'BERT'];
+          for (const model of aiModels) {
+            if (contentLower.includes(model.toLowerCase())) {
+              labels.unshift(model);
+              break;
+            }
+          }
+        }
 
-        return response.status(200).json({ labels });
+        return response.status(200).json({ labels: Array.isArray(labels) ? labels : [] });
 
     } catch (error) {
         console.error('Error in analyze-labels API:', error);

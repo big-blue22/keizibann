@@ -189,7 +189,10 @@
                   });
                   if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
                   const newPost = await res.json();
-                  setStatus({ loading: false, error: null, success: '投稿が完了しました！' });
+                  const labelsText = newPost.post?.labels?.length > 0 
+                      ? ` 自動生成されたラベル: ${newPost.post.labels.join(', ')}` 
+                      : '';
+                  setStatus({ loading: false, error: null, success: `投稿が完了しました！${labelsText}` });
                   setUrl('');
                   setOriginalContent('');
                   setSummary('');
