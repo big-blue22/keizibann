@@ -1,5 +1,5 @@
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 // ユーザーエージェントを設定して、ボットとして認識されにくくします
 const AXIOS_OPTIONS = {
@@ -15,14 +15,18 @@ export default async function handler(request, response) {
   }
 
   const { url } = request.query;
+  console.log('プレビューリクエスト受信:', url);
 
   if (!url || typeof url !== 'string') {
+    console.log('無効なURL:', url);
     return response.status(400).json({ error: 'URLが指定されていません' });
   }
 
   try {
     // 1. 指定されたURLからHTMLを取得
+    console.log('HTML取得開始:', url);
     const { data: html } = await axios.get(url, AXIOS_OPTIONS);
+    console.log('HTML取得成功:', html.length, '文字');
 
     // 2. CheerioでHTMLを解析
     const $ = cheerio.load(html);
@@ -43,6 +47,8 @@ export default async function handler(request, response) {
         const siteUrl = new URL(url);
         previewData.image = `${siteUrl.protocol}//${siteUrl.hostname}${previewData.image}`;
     }
+
+    console.log('プレビューデータ生成完了:', previewData);
 
     // 4. JSON形式でプレビューデータを返す
     return response.status(200).json(previewData);

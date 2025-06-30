@@ -44,18 +44,29 @@
 
         const UrlPreview = ({ data, onClear }) => {
             if (!data) return null;
-            const hasRequiredData = data.title && data.image;
-            return React.createElement('div', { className: `my-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600 relative ${hasRequiredData ? 'opacity-100' : 'opacity-60'}` },
+            const hasTitle = data.title && data.title !== 'タイトルなし';
+            const hasDescription = data.description && data.description !== '説明なし';
+            const hasImage = data.image;
+            
+            // タイトルまたは説明がある場合に表示
+            if (!hasTitle && !hasDescription) return null;
+            
+            return React.createElement('div', { className: `my-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600 relative` },
                 React.createElement('button', {
                     onClick: onClear,
                     className: "absolute -top-2 -right-2 w-6 h-6 bg-slate-800 rounded-full text-slate-400 hover:bg-red-500 hover:text-white transition-colors text-sm"
                 }, "×"),
                 React.createElement('a', { href: data.url, target: "_blank", rel: "noopener noreferrer", className: "flex space-x-4" },
-                    data.image && React.createElement('img', { src: data.image, alt: data.title, className: "w-24 h-24 object-cover rounded-md flex-shrink-0 bg-slate-600" }),
+                    hasImage && React.createElement('img', { 
+                        src: data.image, 
+                        alt: data.title || 'プレビュー画像', 
+                        className: "w-24 h-24 object-cover rounded-md flex-shrink-0 bg-slate-600",
+                        onError: (e) => { e.target.style.display = 'none'; } // 画像読み込み失敗時は非表示
+                    }),
                     React.createElement('div', { className: "flex flex-col justify-center overflow-hidden" },
-                        React.createElement('p', { className: "font-semibold text-slate-200 truncate" }, data.title),
-                        data.description && React.createElement('p', { className: "text-sm text-slate-400 mt-1 line-clamp-2" }, data.description),
-                        React.createElement('p', { className: "text-xs text-slate-500 mt-2 truncate" }, data.siteName)
+                        hasTitle && React.createElement('p', { className: "font-semibold text-slate-200 truncate" }, data.title),
+                        hasDescription && React.createElement('p', { className: "text-sm text-slate-400 mt-1 line-clamp-2" }, data.description),
+                        React.createElement('p', { className: "text-xs text-slate-500 mt-2 truncate" }, data.siteName || new URL(data.url).hostname)
                     )
                 )
             );
@@ -98,25 +109,34 @@
           const [isPreviewLoading, setIsPreviewLoading] = useState(false);
           const debounceTimeout = useRef(null);
           const fetchPreview = useCallback(async (urlToFetch) => {
+              const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+              if (isDev) console.log('プレビュー取得開始:', urlToFetch);
               setIsPreviewLoading(true);
               setPreviewData(null);
               try {
                   const res = await fetch(`/api/preview?url=${encodeURIComponent(urlToFetch)}`);
+                  if (isDev) console.log('プレビューAPI応答:', res.status, res.ok);
                   if (!res.ok) {
                       const err = await res.json().catch(() => ({ error: 'プレビューを取得できませんでした。' }));
                       throw new Error(err.error);
                   }
                   const data = await res.json();
+                  if (isDev) console.log('プレビューデータ:', data);
                   setPreviewData(data);
-                  if (!summary.trim() && data.description && data.description !== '説明なし') {
-                      setSummary(data.description);
-                  }
+                  // summaryが空の場合のみ自動設定
+                  setSummary(prev => {
+                      if (!prev.trim() && data.description && data.description !== '説明なし') {
+                          if (isDev) console.log('自動的にsummaryを設定:', data.description);
+                          return data.description;
+                      }
+                      return prev;
+                  });
               } catch (err) {
                   console.warn('プレビュー取得エラー:', err.message);
               } finally {
                   setIsPreviewLoading(false);
               }
-          }, [summary]);
+          }, []); // 依存配列を空にして無限ループを防ぐ
           const handleUrlChange = (e) => {
               const newUrl = e.target.value;
               setUrl(newUrl);
@@ -124,9 +144,14 @@
               setPreviewData(null);
               const urlRegex = /(https?:\/\/[^\s]+)/;
               if (urlRegex.test(newUrl)) {
+                  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                      console.log('URLプレビュー取得開始:', newUrl);
+                  }
                   debounceTimeout.current = setTimeout(() => {
                       fetchPreview(newUrl);
                   }, 800);
+              } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                  console.log('無効なURL形式:', newUrl);
               }
           };
           const handleRefine = async () => {
