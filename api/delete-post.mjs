@@ -2,8 +2,10 @@
 import { kv } from '@vercel/kv';
 import fs from 'fs/promises';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 
 const POSTS_FILE = path.join(process.cwd(), 'data', 'posts.json');
+const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-key-change-in-production';
 
 // 開発環境用：ローカルファイルストレージ
 async function loadPostsLocal() {
@@ -25,13 +27,38 @@ function isKvAvailable() {
 }
 
 export default async function handler(request, response) {
-  if (request.method !== 'DELETE') {
+  if (request.method !== 'POST') {
     return response.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  // 管理者認証をチェック
+  const token = request.headers.authorization?.split(' ')[1];
+  console.log('Received token for delete post:', token);
+  
+  if (!token) {
+    console.error('No authorization token provided');
+    return response.status(401).json({ message: '認証トークンが必要です。' });
+  }
+
+  try {
+    // JWT token validation
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.isAdmin) {
+      console.error('Token does not have admin privileges');
+      return response.status(401).json({ message: '管理者権限が必要です。' });
+    }
+    console.log('Admin token verified successfully');
+  } catch (jwtError) {
+    console.error('JWT verification failed:', jwtError.message);
+    return response.status(401).json({ message: '無効な認証トークンです。' });
   }
 
   try {
     const { postId } = request.body;
+    console.log('Attempting to delete post with ID:', postId);
+    console.log('Attempting to delete post with ID:', postId);
     if (!postId) {
+      console.error('No postId provided in request body');
       return response.status(400).json({ message: '投稿IDが必要です。' });
     }
 
@@ -61,8 +88,11 @@ export default async function handler(request, response) {
       });
 
       if (allPosts.length === postsToKeep.length) {
+        console.log('Post not found for deletion:', postId);
         return response.status(404).json({ message: '指定された投稿が見つかりません。' });
       }
+
+      console.log(`Deleting post from KV. Before: ${allPosts.length}, After: ${postsToKeep.length}`);
 
       await kv.del('posts');
       if (postsToKeep.length > 0) {
@@ -81,12 +111,16 @@ export default async function handler(request, response) {
       const filteredPosts = posts.filter(post => post.id !== postId);
       
       if (posts.length === filteredPosts.length) {
+        console.log('Post not found for deletion in local file:', postId);
         return response.status(404).json({ message: '指定された投稿が見つかりません。' });
       }
+
+      console.log(`Deleting post from local file. Before: ${posts.length}, After: ${filteredPosts.length}`);
 
       await savePostsLocal(filteredPosts);
     }
 
+    console.log('Post deleted successfully:', postId);
     return response.status(200).json({ success: true });
 
   } catch (error) {

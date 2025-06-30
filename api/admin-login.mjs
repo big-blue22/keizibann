@@ -1,7 +1,7 @@
 // /api/admin-login.mjs
 import jwt from 'jsonwebtoken';
 
-const ADMIN_PASSWORD = '0622'; // あなたのパスワード
+const ADMIN_PASSWORD = 'admin123'; // あなたのパスワード
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-key-change-in-production';
 
 export default async function handler(request, response) {
