@@ -5,5 +5,14 @@
     "axios": "^1.10.0",
     "cheerio": "^1.1.0",
     "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch",
+    "build:css:prod": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify"
   }
 }

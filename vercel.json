@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run build:css:prod",
   "functions": {
     "api/create-post.mjs": {
       "memory": 128
