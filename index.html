@@ -481,16 +481,39 @@
             });
           };
           const handleLogin = async (password) => {
-              const res = await fetch('/api/login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ password })
-              });
-              if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
-              const { token } = await res.json();
-              localStorage.setItem('admin-token', token);
-              setIsAdmin(true);
-              setShowLogin(false);
+              try {
+                  const res = await fetch('/api/admin-login', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ password })
+                  });
+                  
+                  if (!res.ok) { 
+                      let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+                      try {
+                          const err = await res.json();
+                          errorMessage = err.message || errorMessage;
+                      } catch (parseError) {
+                          console.error('Response parsing error:', parseError);
+                          const responseText = await res.text();
+                          console.error('Response text:', responseText);
+                          errorMessage = `サーバーエラー: ${errorMessage}`;
+                      }
+                      throw new Error(errorMessage);
+                  }
+                  
+                  const data = await res.json();
+                  if (!data.token) {
+                      throw new Error('トークンが返されませんでした。');
+                  }
+                  
+                  localStorage.setItem('admin-token', data.token);
+                  setIsAdmin(true);
+                  setShowLogin(false);
+              } catch (error) {
+                  console.error('Login error:', error);
+                  throw error;
+              }
           };
           const handleLogout = () => {
               localStorage.removeItem('admin-token');
