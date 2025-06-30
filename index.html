@@ -227,7 +227,6 @@
             const [comments, setComments] = useState([]);
             const [newCommentContent, setNewCommentContent] = useState('');
             const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
-            const [showPreview, setShowPreview] = useState(false);
             const [previewData, setPreviewData] = useState(null);
             const [previewLoading, setPreviewLoading] = useState(false);
             const incrementViewCount = async () => {
@@ -259,7 +258,7 @@
             };
 
             // プレビューを取得する関数
-            const fetchPostPreview = async () => {
+            const fetchPostPreview = useCallback(async () => {
                 if (previewData || previewLoading) return; // 既に取得済みまたは読み込み中の場合はスキップ
                 
                 setPreviewLoading(true);
@@ -274,22 +273,16 @@
                 } finally {
                     setPreviewLoading(false);
                 }
-            };
+            }, [post.url, previewData, previewLoading]);
 
-            // プレビュー表示を切り替える関数
-            const togglePreview = () => {
-                setShowPreview(!showPreview);
-                if (!showPreview && !previewData && !previewLoading) {
+            // コンポーネントマウント時にプレビューを自動取得（少し遅延を入れてパフォーマンス向上）
+            useEffect(() => {
+                const timer = setTimeout(() => {
                     fetchPostPreview();
-                }
-            };
+                }, Math.random() * 1000 + 500); // 500-1500msのランダム遅延
 
-            // URLリンクホバー時の処理（プレビューを事前取得）
-            const handleUrlHover = () => {
-                if (!previewData && !previewLoading) {
-                    fetchPostPreview();
-                }
-            };
+                return () => clearTimeout(timer);
+            }, [fetchPostPreview]); // fetchPostPreviewが変わった時のみ再実行
             const fetchComments = useCallback(async () => {
                 setCommentStatus({ loading: true, error: null });
                 try {
@@ -349,47 +342,26 @@
                     onClick: () => onDelete(post.id),
                     className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
                 }, "削除"),
-                React.createElement('div', { className: "flex items-center justify-between" },
-                    React.createElement('p', { className: "text-sm text-purple-400 truncate flex-1" }, React.createElement('a', {
-                        href: post.url,
-                        target: "_blank",
-                        rel: "noopener noreferrer",
-                        className: "hover:underline",
-                        onClick: incrementViewCount,
-                        onMouseEnter: handleUrlHover
-                    }, post.url)),
-                    React.createElement('button', {
-                        onClick: togglePreview,
-                        className: `ml-2 px-2 py-1 text-xs rounded transition-colors ${
-                            showPreview 
-                                ? 'bg-purple-700 text-white hover:bg-purple-800' 
-                                : 'bg-purple-600 text-white hover:bg-purple-700'
-                        }`
-                    }, React.createElement('span', { className: 'flex items-center gap-1' },
-                        React.createElement('span', null, showPreview ? '👁️‍🗨️' : '👁️'),
-                        React.createElement('span', null, showPreview ? 'プレビューを隠す' : 'プレビュー')
-                    ))
-                ),
+                React.createElement('p', { className: "text-sm text-purple-400 truncate" }, React.createElement('a', {
+                    href: post.url,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "hover:underline",
+                    onClick: incrementViewCount
+                }, post.url)),
                 React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
                 
-                // プレビュー表示エリア
-                showPreview && React.createElement('div', { className: "my-3 border-l-4 border-purple-500 pl-4" },
-                    previewLoading && React.createElement('div', { className: 'flex items-center justify-center p-4 bg-slate-700/30 rounded' },
+                // プレビュー表示エリア（常時表示）
+                React.createElement('div', { className: "my-3" },
+                    previewLoading && React.createElement('div', { className: 'flex items-center justify-center p-3 bg-slate-700/20 rounded border-l-4 border-purple-500 pl-4' },
                         React.createElement(LoadingSpinner, { size: 'sm' }),
                         React.createElement('span', { className: 'ml-2 text-sm text-slate-400' }, 'プレビュー読み込み中...')
                     ),
-                    !previewLoading && previewData && React.createElement(UrlPreview, { 
-                        data: previewData, 
-                        onClear: () => { setPreviewData(null); setShowPreview(false); }
-                    }),
-                    !previewLoading && !previewData && showPreview && React.createElement('div', { 
-                        className: 'text-sm text-slate-500 p-3 bg-slate-700/30 rounded border border-slate-600' 
-                    }, 
-                        React.createElement('p', { className: 'flex items-center gap-2' },
-                            React.createElement('span', null, '⚠️'),
-                            React.createElement('span', null, 'プレビューを取得できませんでした')
-                        ),
-                        React.createElement('p', { className: 'text-xs text-slate-600 mt-1' }, 'サイトがプレビューをブロックしている可能性があります')
+                    !previewLoading && previewData && React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
+                        React.createElement(UrlPreview, { 
+                            data: previewData, 
+                            onClear: () => setPreviewData(null)
+                        })
                     )
                 ),
                 React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
