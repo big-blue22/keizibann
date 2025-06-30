@@ -104,6 +104,7 @@ const PostForm = ({ onPostAdded }) => {
   const [originalContent, setOriginalContent] = useState('');
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null });
+  const [urlInputKey, setUrlInputKey] = useState(Date.now()); // URL入力欄を強制再レンダリング
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
@@ -151,6 +152,7 @@ const PostForm = ({ onPostAdded }) => {
       setUrl('');
       setOriginalContent('');
       setSummary('');
+      setUrlInputKey(Date.now()); // URL入力欄を強制再レンダリングして履歴を無効化
       setStatus({ loading: false, error: null, success: '投稿が成功しました！' });
     } catch (err) {
       setStatus({ loading: false, error: err.message, success: null });
@@ -168,18 +170,35 @@ const PostForm = ({ onPostAdded }) => {
     status.success && React.createElement('p', { className: "text-green-400" }, status.success),
     // URL入力
     React.createElement('div', null,
-        React.createElement('label', { htmlFor: "url" }, "URL *"),
+        React.createElement('div', { className: "flex justify-between items-center mb-1" },
+            React.createElement('label', { htmlFor: "url-" + urlInputKey }, "URL *"),
+            React.createElement('button', {
+                type: "button",
+                onClick: () => {
+                    setUrl('');
+                    setUrlInputKey(Date.now());
+                },
+                className: "text-xs text-slate-400 hover:text-slate-200 px-2 py-1"
+            }, "クリア")
+        ),
         React.createElement('input', { 
-            type: "url", 
-            id: "url", 
-            name: "url-" + Date.now(), // 動的なname属性でブラウザ履歴を無効化
+            key: urlInputKey, // React keyで強制再マウント
+            type: "text", // URLタイプから変更してブラウザ履歴を回避
+            id: "url-" + urlInputKey, 
+            name: "url-field-" + urlInputKey + "-" + Math.random().toString(36).substring(7), // 完全にユニークなname
             value: url, 
             onChange: e => setUrl(e.target.value), 
+            onFocus: () => setUrlInputKey(Date.now()), // フォーカス時に再レンダリング
             required: true, 
-            autoComplete: "off",
+            autoComplete: "new-password", // より強力な無効化
             autoCapitalize: "none",
             autoCorrect: "off",
             spellCheck: false,
+            "data-form-type": "other", // ブラウザのフォーム認識を無効化
+            "data-lpignore": "true", // LastPassなどの拡張機能を無視
+            placeholder: "https://example.com",
+            pattern: "https?://.*", // URL形式の検証は残す
+            title: "有効なURLを入力してください",
             className: "w-full p-2 bg-slate-700 rounded" 
         })
     ),
