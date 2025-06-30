@@ -1,0 +1,26 @@
+[
+  {
+    "id": "post_1703673600000",
+    "url": "https://github.com/vercel/storage",
+    "summary": "Vercel Storageは、Vercelプラットフォーム上でデータベースやファイルストレージを簡単に利用できるサービスです。KV、Postgres、Blobなど様々なストレージオプションを提供しています。",
+    "labels": [
+      "Vercel",
+      "データベース",
+      "クラウド"
+    ],
+    "createdAt": "2024-12-27T10:00:00.000Z",
+    "viewCount": 7
+  },
+  {
+    "id": "post_1703659200000",
+    "url": "https://nextjs.org/docs/app/building-your-application/data-fetching",
+    "summary": "Next.js App Routerでのデータフェッチングの最新手法について。Server Components、Client Components、そしてキャッシュ戦略の使い分けを解説しています。",
+    "labels": [
+      "Next.js",
+      "React",
+      "フロントエンド"
+    ],
+    "createdAt": "2024-12-27T06:00:00.000Z",
+    "viewCount": 12
+  }
+]

@@ -1,5 +1,4 @@
 {
-  "buildCommand": "npm run build:css:prod",
   "functions": {
     "api/create-post.mjs": {
       "memory": 128
@@ -10,6 +9,9 @@
     "api/delete-post.mjs": {
       "memory": 128
     },
+    "api/delete-comment.mjs": {
+      "memory": 128
+    },
     "api/increment-view-count.mjs": {
       "memory": 128
     },
@@ -18,6 +20,18 @@
     },
     "api/analyze-labels.mjs": {
       "memory": 256
+    },
+    "api/preview.mjs": {
+      "memory": 128
+    },
+    "api/admin-login.mjs": {
+      "memory": 128
+    },
+    "api/add-comment.mjs": {
+      "memory": 128
+    },
+    "api/get-comments.mjs": {
+      "memory": 128
     }
   }
 }
