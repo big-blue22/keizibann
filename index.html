@@ -148,14 +148,22 @@ const PostForm = ({ onPostAdded }) => {
     }
   };
 
-  return React.createElement('form', { onSubmit: handleSubmit, className: "p-6 bg-slate-800 rounded-xl space-y-4" },
+  return React.createElement('form', { onSubmit: handleSubmit, autoComplete: "off", className: "p-6 bg-slate-800 rounded-xl space-y-4" },
     React.createElement('h2', { className: "text-2xl font-semibold text-purple-400" }, "発見を共有"),
     status.error && React.createElement('p', { className: "text-red-400" }, status.error),
     status.success && React.createElement('p', { className: "text-green-400" }, status.success),
     // URL入力
     React.createElement('div', null,
         React.createElement('label', { htmlFor: "url" }, "URL *"),
-        React.createElement('input', { type: "url", id: "url", value: url, onChange: e => setUrl(e.target.value), required: true, className: "w-full p-2 bg-slate-700 rounded" })
+        React.createElement('input', { 
+            type: "url", 
+            id: "url", 
+            value: url, 
+            onChange: e => setUrl(e.target.value), 
+            required: true, 
+            autoComplete: "off",
+            className: "w-full p-2 bg-slate-700 rounded" 
+        })
     ),
     // 原文入力
     React.createElement('div', null,
