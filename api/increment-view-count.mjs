@@ -33,6 +33,43 @@ function getClientIP(request) {
          'unknown';
 }
 
+// 日付をYYYY-MM-DD形式で取得
+function getTodayString() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// 直近3日間の閲覧数を更新
+function updateRecentViews(post) {
+  const today = getTodayString();
+  
+  // recentViewsが存在しない場合は初期化
+  if (!post.recentViews) {
+    post.recentViews = {};
+  }
+  
+  // 今日の閲覧数をインクリメント
+  post.recentViews[today] = (post.recentViews[today] || 0) + 1;
+  
+  // 3日以上前のデータを削除
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  const cutoffDate = threeDaysAgo.toISOString().split('T')[0];
+  
+  Object.keys(post.recentViews).forEach(date => {
+    if (date < cutoffDate) {
+      delete post.recentViews[date];
+    }
+  });
+  
+  return post;
+}
+
+// 直近3日間の合計閲覧数を計算
+function calculateRecentViewCount(recentViews) {
+  if (!recentViews) return 0;
+  return Object.values(recentViews).reduce((sum, count) => sum + count, 0);
+}
+
 // 重複アクセスチェック
 async function isDuplicateView(postId, clientIP) {
   const key = `view_throttle:${postId}:${clientIP}`;
@@ -132,7 +169,15 @@ export default async function handler(request, response) {
       }
 
       if (postToUpdate && postIndex !== -1) {
+        // 総閲覧数をインクリメント
         postToUpdate.viewCount = (postToUpdate.viewCount || 0) + 1;
+        
+        // 直近3日間の閲覧数を更新
+        postToUpdate = updateRecentViews(postToUpdate);
+        
+        // 直近3日間の合計閲覧数を計算
+        postToUpdate.recentViewCount = calculateRecentViewCount(postToUpdate.recentViews);
+        
         // 確実にJSON文字列として保存
         await kv.lset('posts', postIndex, JSON.stringify(postToUpdate));
         return response.status(200).json({ success: true, post: postToUpdate });
@@ -145,7 +190,15 @@ export default async function handler(request, response) {
       const postIndex = posts.findIndex(post => post.id === postId);
 
       if (postIndex !== -1) {
+        // 総閲覧数をインクリメント
         posts[postIndex].viewCount = (posts[postIndex].viewCount || 0) + 1;
+        
+        // 直近3日間の閲覧数を更新
+        posts[postIndex] = updateRecentViews(posts[postIndex]);
+        
+        // 直近3日間の合計閲覧数を計算
+        posts[postIndex].recentViewCount = calculateRecentViewCount(posts[postIndex].recentViews);
+        
         await savePostsLocal(posts);
         return response.status(200).json({ success: true, post: posts[postIndex] });
       } else {

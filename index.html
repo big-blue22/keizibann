@@ -340,6 +340,7 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         React.createElement('div', { className: "flex flex-wrap gap-2" }, post.labels.map(label => React.createElement(Tag, { key: label, label: label }))),
         React.createElement('p', { className: "text-xs text-slate-500 mt-3" }, new Date(post.createdAt).toLocaleString('ja-JP')),
         React.createElement('p', { className: "text-xs text-slate-500 mt-1" }, `閲覧数: ${post.viewCount || 0}`),
+        post.recentViewCount !== undefined && React.createElement('p', { className: "text-xs text-slate-400 mt-0.5" }, `直近3日間: ${post.recentViewCount}回`),
 
         React.createElement('button', {
             onClick: () => setShowComments(!showComments),

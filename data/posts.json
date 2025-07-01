@@ -10,7 +10,13 @@
     ],
     "createdAt": "2024-12-27T10:00:00.000Z",
     "viewCount": 7,
-    "commentCount": 0
+    "commentCount": 0,
+    "recentViews": {
+      "2025-07-01": 1,
+      "2025-06-30": 1,
+      "2025-06-29": 0
+    },
+    "recentViewCount": 2
   },
   {
     "id": "post_1703659200000",
@@ -23,6 +29,12 @@
     ],
     "createdAt": "2024-12-27T06:00:00.000Z",
     "viewCount": 12,
-    "commentCount": 0
+    "commentCount": 0,
+    "recentViews": {
+      "2025-07-01": 2,
+      "2025-06-30": 1,
+      "2025-06-29": 0
+    },
+    "recentViewCount": 3
   }
 ]
