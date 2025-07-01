@@ -344,7 +344,7 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         React.createElement('button', {
             onClick: () => setShowComments(!showComments),
             className: "mt-4 px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-        }, showComments ? 'コメントを非表示' : `コメントを表示 (${post.commentCount || comments.length})`),
+        }, showComments ? 'コメントを非表示' : `コメントを表示 (${post.commentCount || 0})`),
 
         showComments && React.createElement('div', { className: "mt-4 pt-4 border-t border-slate-700" },
             React.createElement('h4', { className: "text-lg font-semibold text-slate-300 mb-3" }, "コメント"),
