@@ -273,8 +273,13 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
             setCommentStatus({ loading: false, error: null });
             
             // 投稿のコメント数を更新
-            const updatedPost = { ...post, commentCount: (post.commentCount || 0) + 1 };
-            onPostUpdated(updatedPost);
+            if (data.post) {
+                onPostUpdated(data.post);
+            } else {
+                // APIから投稿データが返されない場合は、手動で更新
+                const updatedPost = { ...post, commentCount: (post.commentCount || 0) + 1 };
+                onPostUpdated(updatedPost);
+            }
         } catch (err) {
             console.error('Failed to add comment:', err);
             setCommentStatus({ loading: false, error: err.message });
@@ -339,7 +344,7 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         React.createElement('button', {
             onClick: () => setShowComments(!showComments),
             className: "mt-4 px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-        }, showComments ? 'コメントを非表示' : `コメントを表示 (${post.commentCount || 0})`),
+        }, showComments ? 'コメントを非表示' : `コメントを表示 (${post.commentCount || comments.length})`),
 
         showComments && React.createElement('div', { className: "mt-4 pt-4 border-t border-slate-700" },
             React.createElement('h4', { className: "text-lg font-semibold text-slate-300 mb-3" }, "コメント"),

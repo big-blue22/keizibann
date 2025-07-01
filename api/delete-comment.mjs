@@ -25,6 +25,55 @@ function isKvAvailable() {
   return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
 }
 
+// 投稿のcommentCountを更新
+async function updatePostCommentCount(postId, increment = -1) {
+  try {
+    if (isKvAvailable()) {
+      // 本番環境：Vercel KVを使用
+      const postsAsStrings = await kv.lrange('posts', 0, -1);
+      const posts = postsAsStrings.map(postData => {
+        try {
+          if (typeof postData === 'object' && postData !== null) {
+            return postData;
+          }
+          if (typeof postData === 'string') {
+            return JSON.parse(postData);
+          }
+          return null;
+        } catch (e) {
+          console.error('投稿データの解析に失敗:', postData, e);
+          return null;
+        }
+      }).filter(post => post !== null);
+
+      const postIndex = posts.findIndex(post => post.id === postId);
+      if (postIndex !== -1) {
+        posts[postIndex].commentCount = Math.max((posts[postIndex].commentCount || 0) + increment, 0);
+        
+        // KVのリストを更新
+        await kv.del('posts');
+        for (let i = posts.length - 1; i >= 0; i--) {
+          await kv.lpush('posts', JSON.stringify(posts[i]));
+        }
+        
+        return posts[postIndex];
+      }
+    } else {
+      // 開発環境：ローカルファイルを使用
+      const posts = await loadPostsLocal();
+      const postIndex = posts.findIndex(post => post.id === postId);
+      if (postIndex !== -1) {
+        posts[postIndex].commentCount = Math.max((posts[postIndex].commentCount || 0) + increment, 0);
+        await savePostsLocal(posts);
+        return posts[postIndex];
+      }
+    }
+  } catch (error) {
+    console.error('Error updating post comment count:', error);
+  }
+  return null;
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     return response.status(405).json({ message: 'Method Not Allowed' });
@@ -101,6 +150,9 @@ export default async function handler(request, response) {
         // lpushは複数の引数を取れるので、逆順にして一括で追加
         await kv.lpush(commentsKey, ...updatedComments.map(c => JSON.stringify(c)).reverse());
       }
+
+      // 投稿のcommentCountを更新
+      await updatePostCommentCount(postId, -1);
     } else {
       // 開発環境：ローカルファイルを使用
       console.log('Using local file storage for comment deletion');
@@ -126,6 +178,9 @@ export default async function handler(request, response) {
 
       await savePostsLocal(posts);
       console.log(`Comment deleted from local file. Before: ${originalCommentCount}, After: ${targetPost.comments.length}`);
+
+      // 投稿のcommentCountを更新
+      await updatePostCommentCount(postId, -1);
     }
 
     console.log('Comment deleted successfully:', commentId);
