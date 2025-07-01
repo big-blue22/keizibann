@@ -259,6 +259,7 @@ export default async function handler(request, response) {
       labels,
       createdAt: new Date().toISOString(),
       viewCount: 0,
+      commentCount: 0,
     };
 
     if (isKvAvailable()) {

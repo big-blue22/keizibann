@@ -47,9 +47,37 @@ export default async function handler(request, response) {
           return null;
         }
       }).filter(post => post !== null);
+
+      // 各投稿のコメント数を取得
+      posts = await Promise.all(posts.map(async (post) => {
+        try {
+          const comments = await kv.lrange(`comments:${post.id}`, 0, -1);
+          return { ...post, commentCount: comments ? comments.length : 0 };
+        } catch (error) {
+          console.error(`Error fetching comment count for post ${post.id}:`, error);
+          return { ...post, commentCount: 0 };
+        }
+      }));
     } else {
       // 開発環境：ローカルファイルを使用
       posts = await loadPostsLocal();
+      
+      // 開発環境でもコメント数を取得
+      posts = await Promise.all(posts.map(async (post) => {
+        try {
+          // 開発環境でもKVが利用可能な場合はコメント数を取得
+          if (isKvAvailable()) {
+            const comments = await kv.lrange(`comments:${post.id}`, 0, -1);
+            return { ...post, commentCount: comments ? comments.length : 0 };
+          } else {
+            // KVが利用不可の場合は0として扱う
+            return { ...post, commentCount: 0 };
+          }
+        } catch (error) {
+          console.error(`Error fetching comment count for post ${post.id}:`, error);
+          return { ...post, commentCount: 0 };
+        }
+      }));
     }
 
     // ★ 並び替え処理を追加
