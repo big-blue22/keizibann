@@ -325,9 +325,11 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
             ? "bg-green-800/30 border-green-600 rounded-lg p-5 border relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-green-400"
             : "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500"
     },
-        // 24時間以内の投稿にNEWバッジを表示
+        // 24時間以内の投稿にNEWバッジを表示（削除ボタンの有無で位置調整）
         isRecent && React.createElement('div', {
-            className: "absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white bg-green-500 rounded-full"
+            className: isAdmin 
+                ? "absolute top-10 right-2 px-2 py-1 text-xs font-bold text-white bg-green-500 rounded-full shadow-lg"
+                : "absolute top-2 right-2 px-2 py-1 text-xs font-bold text-white bg-green-500 rounded-full shadow-lg"
         }, "NEW"),
         isAdmin && React.createElement('button', {
             onClick: () => onDelete(post.id),
