@@ -420,6 +420,21 @@ const LabelCloud = ({ labels, activeFilter, onSelect }) => {
     );
 };
 
+// -- ★★★ 新機能：並び替えUI (SortControls) ★★★ --
+const SortControls = ({ sortOrder, onSortChange }) => {
+    return React.createElement('div', { className: "mb-4 flex items-center gap-3" },
+        React.createElement('label', { className: "text-sm font-medium text-slate-300" }, "並び替え:"),
+        React.createElement('select', {
+            value: sortOrder,
+            onChange: (e) => onSortChange(e.target.value),
+            className: "px-3 py-1.5 bg-slate-700 text-slate-200 rounded border border-slate-600 focus:border-purple-400 focus:outline-none text-sm"
+        },
+            React.createElement('option', { value: 'newest' }, "新規順"),
+            React.createElement('option', { value: 'recommended' }, "おすすめ順")
+        )
+    );
+};
+
 
 // -- ヘッダー --
 const Header = ({ isAdmin, onLoginClick, onLogoutClick }) => {
@@ -441,6 +456,9 @@ const App = () => {
   
   // ★★★ 新機能：アクティブなフィルターを管理するState ★★★
   const [activeLabelFilter, setActiveLabelFilter] = useState(null);
+  
+  // ★★★ 新機能：並び替えを管理するState ★★★
+  const [sortOrder, setSortOrder] = useState('newest'); // 'newest' or 'recommended'
 
   // 初回にトークンを確認 & 投稿を取得
   useEffect(() => {
@@ -477,6 +495,45 @@ const App = () => {
     }
     return allPosts.filter(post => post.labels.includes(activeLabelFilter));
   }, [allPosts, activeLabelFilter]);
+
+  // ★★★ 新機能：並び替えされた投稿リストを計算 ★★★
+  const sortedAndFilteredPosts = useMemo(() => {
+    if (!filteredPosts) return [];
+    
+    const sorted = [...filteredPosts];
+    
+    if (sortOrder === 'newest') {
+      // 新規順：作成日時で降順
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sortOrder === 'recommended') {
+      // おすすめ順：新しさ(作成日時)と直近3日間の閲覧数を組み合わせ
+      sorted.sort((a, b) => {
+        const now = new Date();
+        const aDate = new Date(a.createdAt);
+        const bDate = new Date(b.createdAt);
+        
+        // 日数の差を計算（日単位）
+        const aDaysOld = Math.floor((now - aDate) / (1000 * 60 * 60 * 24));
+        const bDaysOld = Math.floor((now - bDate) / (1000 * 60 * 60 * 24));
+        
+        // 新しさスコア：7日以内は高スコア、それ以降は徐々に減少
+        const aFreshnessScore = Math.max(0, 10 - Math.floor(aDaysOld / 7));
+        const bFreshnessScore = Math.max(0, 10 - Math.floor(bDaysOld / 7));
+        
+        // 直近3日間の閲覧数
+        const aRecentViews = a.recentViewCount || 0;
+        const bRecentViews = b.recentViewCount || 0;
+        
+        // 総合スコア：新しさスコア + 直近閲覧数
+        const aScore = aFreshnessScore + aRecentViews;
+        const bScore = bFreshnessScore + bRecentViews;
+        
+        return bScore - aScore; // 降順
+      });
+    }
+    
+    return sorted;
+  }, [filteredPosts, sortOrder]);
 
   // ★★★ 新機能：全てのユニークなラベルを計算 ★★★
   const uniqueLabels = useMemo(() => {
@@ -551,12 +608,13 @@ const App = () => {
     if (error) return React.createElement('p', { className: "text-red-400 text-center" }, `エラー: ${error}`);
     if (allPosts === null) return React.createElement('div', { className: "flex justify-center p-8" }, React.createElement(LoadingSpinner, { size: 'lg' }));
     
-    const noPostsAfterFilter = filteredPosts.length === 0 && activeLabelFilter;
+    const noPostsAfterFilter = sortedAndFilteredPosts.length === 0 && activeLabelFilter;
     const noPostsAtAll = allPosts.length === 0;
 
     const viewTabContent = React.createElement(React.Fragment, null,
         !noPostsAtAll && React.createElement(LabelCloud, { labels: uniqueLabels, activeFilter: activeLabelFilter, onSelect: setActiveLabelFilter }),
-        filteredPosts.length > 0 && React.createElement(PostList, { posts: filteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
+        !noPostsAtAll && React.createElement(SortControls, { sortOrder: sortOrder, onSortChange: setSortOrder }),
+        sortedAndFilteredPosts.length > 0 && React.createElement(PostList, { posts: sortedAndFilteredPosts, isAdmin: isAdmin, onDelete: handleDeletePost, onPostUpdated: handlePostUpdated }),
         noPostsAfterFilter && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `「${activeLabelFilter}」に一致する投稿はありません。`),
         noPostsAtAll && React.createElement('p', { className: 'text-center text-slate-400 mt-8' }, `まだ投稿はありません。最初の投稿をしてみましょう！`)
     );
