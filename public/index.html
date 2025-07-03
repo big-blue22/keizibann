@@ -421,11 +421,48 @@ const App = () => {
     
     const fetchPosts = async () => {
       try {
+        // まずAPIを試行
         const res = await fetch('/api/get-posts');
-        if (!res.ok) throw new Error('投稿の読み込みに失敗しました。');
-        const data = await res.json();
-        setAllPosts(data);
+        if (res.ok) {
+          const data = await res.json();
+          setAllPosts(data);
+          return;
+        }
+        
+        // APIが利用できない場合はローカルJSONファイルにフォールバック
+        console.log('API not available, fallback to local JSON');
+        const localRes = await fetch('./data/posts.json');
+        if (!localRes.ok) throw new Error('投稿データの読み込みに失敗しました。');
+        const localData = await localRes.json();
+        
+        // ローカルデータの正規化処理
+        const normalizedPosts = localData.map(post => {
+          if (!post) return null;
+          
+          // recentViewCountが未計算の場合は計算
+          if (post.recentViewCount === undefined && post.recentViews) {
+            const threeDaysAgo = new Date();
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            const cutoffDate = threeDaysAgo.toISOString().split('T')[0];
+            
+            let totalCount = 0;
+            Object.entries(post.recentViews).forEach(([date, count]) => {
+              if (date >= cutoffDate) {
+                totalCount += count;
+              }
+            });
+            post.recentViewCount = totalCount;
+          }
+          
+          return post;
+        }).filter(post => post !== null);
+        
+        // 作成日時でソート（降順）
+        normalizedPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        setAllPosts(normalizedPosts);
       } catch (err) {
+        console.error('Error fetching posts:', err);
         setError(err.message);
       }
     };
