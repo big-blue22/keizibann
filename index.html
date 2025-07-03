@@ -309,7 +309,26 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         }
     };
 
-    return React.createElement('article', { className: "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500" },
+    // 24時間以内に投稿されたかどうかを判定
+    const isRecentPost = () => {
+        const now = new Date();
+        const postDate = new Date(post.createdAt);
+        const timeDiff = now - postDate;
+        const twentyFourHours = 24 * 60 * 60 * 1000; // 24時間をミリ秒で表現
+        return timeDiff <= twentyFourHours;
+    };
+
+    const isRecent = isRecentPost();
+
+    return React.createElement('article', { 
+        className: isRecent 
+            ? "bg-green-800/30 border-green-600 rounded-lg p-5 border relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-green-400"
+            : "bg-slate-800 rounded-lg p-5 border border-slate-700 relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-purple-500"
+    },
+        // 24時間以内の投稿にNEWバッジを表示
+        isRecent && React.createElement('div', {
+            className: "absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white bg-green-500 rounded-full"
+        }, "NEW"),
         isAdmin && React.createElement('button', {
             onClick: () => onDelete(post.id),
             className: "absolute top-2 right-2 px-2 py-1 text-xs text-red-300 bg-red-800 hover:bg-red-700 rounded"
