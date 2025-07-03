@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Tech Share Hub</title>
-  <link rel="stylesheet" href="./dist/output.css">
+  <link rel="stylesheet" href="/dist/output.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
 <script type="importmap">
 {
@@ -155,7 +155,14 @@ const PostForm = ({ onPostAdded }) => {
     // URL入力
     React.createElement('div', null,
         React.createElement('label', { htmlFor: "url" }, "URL *"),
-        React.createElement('input', { type: "url", id: "url", value: url, onChange: e => setUrl(e.target.value), required: true, className: "w-full p-2 bg-slate-700 rounded" })
+        React.createElement('input', { 
+            type: "url", 
+            id: "url", 
+            value: url, 
+            onChange: e => setUrl(e.target.value), 
+            required: true, 
+            className: "w-full p-2 bg-slate-700 rounded" 
+        })
     ),
     // 原文入力
     React.createElement('div', null,
