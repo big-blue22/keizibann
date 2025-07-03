@@ -1,20 +1,6 @@
-// api/get-posts.mjs
+// api/get-posts.mjs - サーバーデータ取得のみに集中
 
 import { kv } from '@vercel/kv';
-import fs from 'fs/promises';
-import path from 'path';
-
-const POSTS_FILE = path.join(process.cwd(), 'data', 'posts.json');
-
-// 開発環境用：ローカルファイルストレージ
-async function loadPostsLocal() {
-  try {
-    const data = await fs.readFile(POSTS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
 
 // Vercel KVが利用可能かチェック
 function isKvAvailable() {
@@ -58,82 +44,67 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { sortBy } = request.query; // ★ 並び替えパラメータを取得
-
-    let posts = [];
-
-    if (isKvAvailable()) {
-      // 本番環境：Vercel KVを使用
-      const rawPosts = await kv.lrange('posts', 0, -1) || [];
-      
-      posts = rawPosts.map(postData => {
-        try {
-          if (!postData) {
-            return null;
-          }
-          if (typeof postData === 'string') {
-            return JSON.parse(postData);
-          }
-          return null;
-        } catch (e) {
-          console.error('投稿データの解析に失敗:', postData, e);
-          return null;
-        }
-      }).filter(post => post !== null);
-
-      // 各投稿のコメント数とrecentViewCountを取得
-      posts = await Promise.all(posts.map(async (post) => {
-        try {
-          const comments = await kv.lrange(`comments:${post.id}`, 0, -1);
-          const normalizedPost = normalizePost({ ...post, commentCount: comments ? comments.length : 0 });
-          return normalizedPost;
-        } catch (error) {
-          console.error(`Error fetching comment count for post ${post.id}:`, error);
-          const normalizedPost = normalizePost({ ...post, commentCount: 0 });
-          return normalizedPost;
-        }
-      }));
-    } else {
-      // 開発環境：ローカルファイルを使用
-      posts = await loadPostsLocal();
-      
-      // 開発環境でもコメント数とrecentViewCountを取得
-      posts = await Promise.all(posts.map(async (post) => {
-        try {
-          // 開発環境でもKVが利用可能な場合はコメント数を取得
-          if (isKvAvailable()) {
-            const comments = await kv.lrange(`comments:${post.id}`, 0, -1);
-            const normalizedPost = normalizePost({ ...post, commentCount: comments ? comments.length : 0 });
-            return normalizedPost;
-          } else {
-            // KVが利用できない場合はコメント数を0とする
-            const normalizedPost = normalizePost({ ...post, commentCount: 0 });
-            return normalizedPost;
-          }
-        } catch (error) {
-          console.error(`Error processing post ${post.id}:`, error);
-          const normalizedPost = normalizePost({ ...post, commentCount: 0 });
-          return normalizedPost;
-        }
-      }));
+    console.log('🔍 get-posts API called');
+    
+    // Vercel KVが利用可能かチェック
+    if (!isKvAvailable()) {
+      console.log('❌ KV not available - environment variables missing');
+      return response.status(500).json({ 
+        message: 'データベース接続エラー',
+        error: 'KV environment variables not configured'
+      });
     }
 
-    // ★ 並び替え処理
-    if (sortBy === 'popular') {
-      // 閲覧数でソート（降順）
-      posts.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
-    } else if (sortBy === 'recent_popular') {
-      // 直近3日間の閲覧数でソート（降順）
-      posts.sort((a, b) => (b.recentViewCount || 0) - (a.recentViewCount || 0));
-    } else {
-      // デフォルト：作成日時でソート（降順）
-      posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    console.log('✅ KV available, fetching posts...');
+    
+    // Vercel KVから投稿データを取得
+    const rawPosts = await kv.lrange('posts', 0, -1) || [];
+    console.log(`📊 Raw posts from KV: ${rawPosts.length} items`);
+    
+    if (rawPosts.length === 0) {
+      console.log('📭 No posts found in KV');
+      return response.status(200).json([]);
     }
+
+    // JSON文字列をパース
+    const posts = [];
+    for (let i = 0; i < rawPosts.length; i++) {
+      try {
+        const postData = rawPosts[i];
+        if (!postData) continue;
+        
+        const post = typeof postData === 'string' ? JSON.parse(postData) : postData;
+        if (post && post.id) {
+          // コメント数を取得
+          try {
+            const comments = await kv.lrange(`comments:${post.id}`, 0, -1) || [];
+            post.commentCount = comments.length;
+          } catch (commentError) {
+            console.log(`⚠️ Comment fetch error for ${post.id}:`, commentError.message);
+            post.commentCount = 0;
+          }
+          
+          // recentViewCountを計算
+          const normalizedPost = normalizePost(post);
+          posts.push(normalizedPost);
+        }
+      } catch (parseError) {
+        console.error(`❌ Parse error for post ${i}:`, parseError.message);
+      }
+    }
+
+    console.log(`✅ Successfully processed ${posts.length} posts`);
+
+    // 作成日時でソート（降順 - 新しい順）
+    posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return response.status(200).json(posts);
 
   } catch (error) {
-    console.error('Error in get-posts API:', error);
-    return response.status(500).json({ message: '投稿の取得中にエラーが発生しました。' });
+    console.error('❌ Error in get-posts API:', error);
+    return response.status(500).json({ 
+      message: '投稿の取得中にエラーが発生しました',
+      error: error.message
+    });
   }
 }
