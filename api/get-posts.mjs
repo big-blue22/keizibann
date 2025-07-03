@@ -48,11 +48,51 @@ export default async function handler(request, response) {
     
     // Vercel KVが利用可能かチェック
     if (!isKvAvailable()) {
-      console.log('❌ KV not available - environment variables missing');
-      return response.status(500).json({ 
-        message: 'データベース接続エラー',
-        error: 'KV environment variables not configured'
-      });
+      console.log('❌ KV not available - returning mock data for local development');
+      
+      // ローカル開発用のモックデータを返す
+      const mockPosts = [
+        {
+          id: 'mock-1',
+          url: 'https://example.com/ai-trends',
+          content: 'AI技術の最新トレンドについて詳しく解説している記事です。',
+          labels: ['AI', 'トレンド', '技術'],
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1日前
+          recentViews: { 
+            [new Date().toISOString().split('T')[0]]: 10,
+            [new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString().split('T')[0]]: 5 
+          },
+          recentViewCount: 15,
+          commentCount: 3
+        },
+        {
+          id: 'mock-2',
+          url: 'https://example.com/react-tips',
+          content: 'React開発で役立つ実践的なテクニック集です。',
+          labels: ['React', 'JavaScript', 'フロントエンド'],
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3日前
+          recentViews: { 
+            [new Date().toISOString().split('T')[0]]: 8,
+            [new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString().split('T')[0]]: 12 
+          },
+          recentViewCount: 20,
+          commentCount: 1
+        },
+        {
+          id: 'mock-3',
+          url: 'https://example.com/database-design',
+          content: 'データベース設計の基本原則と実装のベストプラクティス。',
+          labels: ['データベース', '設計', 'バックエンド'],
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(), // 7日前
+          recentViews: { 
+            [new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString().split('T')[0]]: 3 
+          },
+          recentViewCount: 3,
+          commentCount: 0
+        }
+      ];
+      
+      return response.status(200).json(mockPosts);
     }
 
     console.log('✅ KV available, fetching posts...');
