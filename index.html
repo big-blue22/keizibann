@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Tech Share Hub</title>
+  <meta name="description" content="AI技術を共有し、学び合うためのプラットフォーム">
+  <meta name="theme-color" content="#a855f7">
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/dist/output.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
 <script type="importmap">
@@ -647,6 +650,19 @@ const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element");
 const root = ReactDOM.createRoot(rootElement);
 root.render(React.createElement(StrictMode, null, React.createElement(App, null)));
+
+// サービスワーカー登録
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('Service Worker registered successfully:', registration.scope);
+      })
+      .catch((error) => {
+        console.log('Service Worker registration failed:', error);
+      });
+  });
+}
   </script>
 </body>
 </html>
