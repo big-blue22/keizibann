@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シェア処理 - AI技術共有ハブ</title>
+    <link rel="stylesheet" href="/dist/output.css">
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-6 text-purple-400">シェアされたコンテンツ</h1>
+        
+        <div id="shared-content" class="bg-slate-800 rounded-lg p-6 mb-6">
+            <div id="loading" class="text-center">
+                <p class="text-gray-400">シェアされたコンテンツを読み込み中...</p>
+            </div>
+            
+            <div id="content" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">タイトル:</label>
+                    <p id="shared-title" class="text-lg font-semibold text-white"></p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">テキスト:</label>
+                    <p id="shared-text" class="text-gray-200"></p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">URL:</label>
+                    <a id="shared-url" href="#" target="_blank" class="text-purple-400 hover:text-purple-300 break-all"></a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex gap-4">
+            <button onclick="createPost()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors">
+                投稿として作成
+            </button>
+            <a href="/" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors inline-block">
+                ホームに戻る
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // URLパラメータからシェアされたコンテンツを取得
+        function getSharedContent() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const title = urlParams.get('title') || '';
+            const text = urlParams.get('text') || '';
+            const url = urlParams.get('url') || '';
+            
+            return { title, text, url };
+        }
+        
+        // シェアされたコンテンツを表示
+        function displaySharedContent() {
+            const { title, text, url } = getSharedContent();
+            
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('content').classList.remove('hidden');
+            
+            document.getElementById('shared-title').textContent = title;
+            document.getElementById('shared-text').textContent = text;
+            
+            if (url) {
+                const urlElement = document.getElementById('shared-url');
+                urlElement.href = url;
+                urlElement.textContent = url;
+            }
+        }
+        
+        // 投稿として作成する機能
+        function createPost() {
+            const { title, text, url } = getSharedContent();
+            
+            // 投稿作成ページにデータを渡す（実装は既存のアプリケーションに合わせて調整が必要）
+            const postData = {
+                title: title,
+                content: text + (url ? '\n\n参照: ' + url : '')
+            };
+            
+            // セッションストレージに保存してホームページに移動
+            sessionStorage.setItem('sharedPostData', JSON.stringify(postData));
+            window.location.href = '/';
+        }
+        
+        // ページ読み込み時にコンテンツを表示
+        document.addEventListener('DOMContentLoaded', displaySharedContent);
+    </script>
+</body>
+</html>
