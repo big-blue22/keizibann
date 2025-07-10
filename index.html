@@ -663,6 +663,144 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+
+// Service Worker からの共有データを受信するリスナー
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SHARED_CONTENT') {
+      const sharedData = event.data.data;
+      
+      console.log('共有コンテンツを受信:', sharedData);
+      
+      // 共有データの内容をコンソールに表示
+      if (sharedData.title) console.log('タイトル:', sharedData.title);
+      if (sharedData.text) console.log('テキスト:', sharedData.text);
+      if (sharedData.url) console.log('URL:', sharedData.url);
+      if (sharedData.files && sharedData.files.length > 0) {
+        console.log('ファイル:');
+        sharedData.files.forEach((file, index) => {
+          console.log(`  ${index + 1}. ${file.name} (${file.type}, ${file.size} bytes)`);
+        });
+      }
+      
+      // トースト通知を表示
+      showToast('共有コンテンツを受け取りました！', 'success');
+      
+      // 共有データを画面に表示
+      displaySharedContent(sharedData);
+    }
+  });
+}
+
+// トースト通知を表示する関数
+function showToast(message, type = 'info') {
+  // 既存のトーストを削除
+  const existingToast = document.querySelector('.toast-notification');
+  if (existingToast) {
+    existingToast.remove();
+  }
+  
+  const toast = document.createElement('div');
+  toast.className = `toast-notification fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
+  
+  // タイプに応じてスタイルを設定
+  switch (type) {
+    case 'success':
+      toast.className += ' bg-green-600 text-white';
+      break;
+    case 'error':
+      toast.className += ' bg-red-600 text-white';
+      break;
+    case 'warning':
+      toast.className += ' bg-yellow-600 text-white';
+      break;
+    default:
+      toast.className += ' bg-blue-600 text-white';
+  }
+  
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  // アニメーション：スライドイン
+  setTimeout(() => {
+    toast.style.transform = 'translateX(0)';
+  }, 100);
+  
+  // 3秒後に自動削除
+  setTimeout(() => {
+    toast.style.transform = 'translateX(full)';
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// 共有データを画面に表示する関数
+function displaySharedContent(sharedData) {
+  // 共有データ表示用のコンテナがあるかチェック
+  let container = document.getElementById('shared-content-display');
+  if (!container) {
+    // コンテナが存在しない場合は作成
+    container = document.createElement('div');
+    container.id = 'shared-content-display';
+    container.className = 'fixed top-16 left-4 right-4 bg-slate-800 border border-purple-500 rounded-lg p-4 shadow-lg z-40 max-w-md mx-auto';
+    
+    // 閉じるボタンを追加
+    const closeButton = document.createElement('button');
+    closeButton.className = 'absolute top-2 right-2 text-slate-400 hover:text-white text-xl';
+    closeButton.innerHTML = '×';
+    closeButton.onclick = () => container.remove();
+    container.appendChild(closeButton);
+    
+    document.body.appendChild(container);
+  }
+  
+  // 内容を作成
+  const content = document.createElement('div');
+  content.className = 'mt-6';
+  
+  let html = '<h3 class="text-lg font-semibold text-purple-400 mb-3">共有されたコンテンツ</h3>';
+  
+  if (sharedData.title) {
+    html += `<div class="mb-2"><strong class="text-slate-300">タイトル:</strong> <span class="text-slate-200">${escapeHtml(sharedData.title)}</span></div>`;
+  }
+  
+  if (sharedData.text) {
+    html += `<div class="mb-2"><strong class="text-slate-300">テキスト:</strong> <span class="text-slate-200">${escapeHtml(sharedData.text)}</span></div>`;
+  }
+  
+  if (sharedData.url) {
+    html += `<div class="mb-2"><strong class="text-slate-300">URL:</strong> <a href="${escapeHtml(sharedData.url)}" target="_blank" class="text-purple-400 hover:text-purple-300 break-all">${escapeHtml(sharedData.url)}</a></div>`;
+  }
+  
+  if (sharedData.files && sharedData.files.length > 0) {
+    html += '<div class="mb-2"><strong class="text-slate-300">ファイル:</strong>';
+    html += '<ul class="list-disc list-inside text-slate-200 ml-4">';
+    sharedData.files.forEach(file => {
+      html += `<li>${escapeHtml(file.name)} (${escapeHtml(file.type)}, ${file.size} bytes)</li>`;
+    });
+    html += '</ul></div>';
+  }
+  
+  content.innerHTML = html;
+  container.appendChild(content);
+  
+  // 5秒後に自動削除
+  setTimeout(() => {
+    if (container.parentNode) {
+      container.remove();
+    }
+  }, 5000);
+}
+
+// HTMLエスケープ関数
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
   </script>
 </body>
 </html>
