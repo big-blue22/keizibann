@@ -24,5 +24,14 @@
   ],
   "categories": ["education", "productivity", "social"],
   "lang": "ja",
-  "dir": "ltr"
+  "dir": "ltr",
+  "share_target": {
+    "action": "/share-handler.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }
