@@ -26,7 +26,7 @@
   "lang": "ja",
   "dir": "ltr",
   "share_target": {
-    "action": "/api/handle-share",
+    "action": "/handle-share",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {

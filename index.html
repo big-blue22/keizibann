@@ -463,29 +463,10 @@ const App = () => {
   // ★★★ 新機能：並び替えを管理するState ★★★
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' or 'recommended'
 
-  // 初回にトークンを確認 & 投稿を取得 & 共有データを処理
+  // 初回にトークンを確認 & 投稿を取得
   useEffect(() => {
     const token = localStorage.getItem('admin-token');
     if (token) setIsAdmin(true);
-    
-    // URL パラメータから共有データを取得
-    const urlParams = new URLSearchParams(window.location.search);
-    const isShared = urlParams.get('shared') === 'true';
-    
-    if (isShared) {
-      const sharedData = {
-        title: urlParams.get('shared_title') || '',
-        text: urlParams.get('shared_text') || '',
-        url: urlParams.get('shared_url') || '',
-        filesCount: parseInt(urlParams.get('shared_files_count') || '0', 10)
-      };
-      
-      // 共有データを処理
-      handleSharedData(sharedData);
-      
-      // URL をクリーンアップ（パラメータを削除）
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
     
     const fetchPosts = async () => {
       try {
@@ -508,20 +489,6 @@ const App = () => {
     };
     fetchPosts();
   }, []);
-
-  // 共有データを処理する関数
-  const handleSharedData = (sharedData) => {
-    console.log('共有データを受信:', sharedData);
-    
-    // トースト通知を表示
-    showToast('共有コンテンツを受け取りました！', 'success');
-    
-    // 共有データを画面に表示
-    displaySharedContent(sharedData);
-    
-    // 投稿作成タブに切り替え
-    setActiveTab('create');
-  };
 
   // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
   const filteredPosts = useMemo(() => {
@@ -697,6 +664,34 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Service Worker からの共有データを受信するリスナー
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SHARED_CONTENT') {
+      const sharedData = event.data.data;
+      
+      console.log('共有コンテンツを受信:', sharedData);
+      
+      // 共有データの内容をコンソールに表示
+      if (sharedData.title) console.log('タイトル:', sharedData.title);
+      if (sharedData.text) console.log('テキスト:', sharedData.text);
+      if (sharedData.url) console.log('URL:', sharedData.url);
+      if (sharedData.files && sharedData.files.length > 0) {
+        console.log('ファイル:');
+        sharedData.files.forEach((file, index) => {
+          console.log(`  ${index + 1}. ${file.name} (${file.type}, ${file.size} bytes)`);
+        });
+      }
+      
+      // トースト通知を表示
+      showToast('共有コンテンツを受け取りました！', 'success');
+      
+      // 共有データを画面に表示
+      displaySharedContent(sharedData);
+    }
+  });
+}
+
 // トースト通知を表示する関数
 function showToast(message, type = 'info') {
   // 既存のトーストを削除
@@ -780,17 +775,16 @@ function displaySharedContent(sharedData) {
     html += `<div class="mb-2"><strong class="text-slate-300">URL:</strong> <a href="${escapeHtml(sharedData.url)}" target="_blank" class="text-purple-400 hover:text-purple-300 break-all">${escapeHtml(sharedData.url)}</a></div>`;
   }
   
-  if (sharedData.filesCount && sharedData.filesCount > 0) {
-    html += `<div class="mb-2"><strong class="text-slate-300">ファイル:</strong> ${sharedData.filesCount} 個のファイルが共有されました</div>`;
+  if (sharedData.files && sharedData.files.length > 0) {
+    html += '<div class="mb-2"><strong class="text-slate-300">ファイル:</strong>';
+    html += '<ul class="list-disc list-inside text-slate-200 ml-4">';
+    sharedData.files.forEach(file => {
+      html += `<li>${escapeHtml(file.name)} (${escapeHtml(file.type)}, ${file.size} bytes)</li>`;
+    });
+    html += '</ul></div>';
   }
   
   content.innerHTML = html;
-  
-  // 既存のコンテンツを削除してから新しいコンテンツを追加
-  const existingContent = container.querySelector('.mt-6');
-  if (existingContent) {
-    existingContent.remove();
-  }
   container.appendChild(content);
   
   // 5秒後に自動削除

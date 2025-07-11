@@ -33,9 +33,6 @@
     },
     "api/get-comments.mjs": {
       "memory": 128
-    },
-    "api/handle-share.mjs": {
-      "memory": 128
     }
   }
 }
