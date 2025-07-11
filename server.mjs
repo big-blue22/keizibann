@@ -2,69 +2,16 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = 3000;
 
-// Multer configuration for handling multipart form data
-const upload = multer();
-
 // JSON パースのミドルウェア
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // URL エンコードされたフォームデータ用
 
 // 静的ファイルを提供
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Web Share Target API のハンドラー
-app.post('/api/handle-share', upload.any(), (req, res) => {
-  try {
-    const title = req.body.title || '';
-    const text = req.body.text || '';
-    const url = req.body.url || '';
-    const shared_files = req.files || [];
-    
-    console.log('Web Share Target data received:', {
-      title,
-      text,
-      url,
-      files: shared_files.length,
-      contentType: req.get('content-type')
-    });
-
-    // 共有データをクエリパラメータとして URL に埋め込む
-    const shareParams = new URLSearchParams();
-    if (title) shareParams.set('shared_title', title);
-    if (text) shareParams.set('shared_text', text);
-    if (url) shareParams.set('shared_url', url);
-    
-    // ファイルの情報があれば追加
-    if (shared_files.length > 0) {
-      shareParams.set('shared_files_count', shared_files.length.toString());
-    }
-
-    // 共有データがある場合はフラグを設定
-    if (title || text || url || shared_files.length > 0) {
-      shareParams.set('shared', 'true');
-    }
-
-    // メインページにリダイレクト（共有データをクエリパラメータで渡す）
-    const redirectUrl = shareParams.toString() ? `/?${shareParams.toString()}` : '/';
-    
-    console.log('Redirecting to:', redirectUrl);
-    
-    // 303 See Other でリダイレクト（POST から GET へのリダイレクトに適している）
-    res.redirect(303, redirectUrl);
-
-  } catch (error) {
-    console.error('Error handling Web Share Target:', error);
-    
-    // エラーが発生した場合でもメインページにリダイレクト
-    res.redirect(303, '/');
-  }
-});
 
 // API ルート
 app.get('/api/get-posts', async (req, res) => {
@@ -132,7 +79,7 @@ app.get('/api/get-comments', (req, res) => {
 
 // SPAサポート: すべてのルートでindex.htmlを返す
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(port, () => {
