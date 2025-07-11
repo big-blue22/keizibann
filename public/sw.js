@@ -8,57 +8,6 @@ const urlsToCache = [
   '/manifest.json'
 ];
 
-// Web Share Target API のハンドリング関数
-async function handleShareTarget(request) {
-  try {
-    const formData = await request.formData();
-    const title = formData.get('title') || '';
-    const text = formData.get('text') || '';
-    const url = formData.get('url') || '';
-    
-    // ファイルデータを取得
-    const files = formData.getAll('shared_files');
-    const fileData = [];
-    
-    for (const file of files) {
-      if (file && file.size > 0) {
-        fileData.push({
-          name: file.name,
-          type: file.type,
-          size: file.size
-        });
-      }
-    }
-    
-    // 共有データをまとめる
-    const sharedData = {
-      title,
-      text,
-      url,
-      files: fileData,
-      timestamp: new Date().toISOString()
-    };
-    
-    // アクティブなクライアントに共有データを送信
-    const clients = await self.clients.matchAll({ includeUncontrolled: true });
-    for (const client of clients) {
-      client.postMessage({
-        type: 'SHARED_CONTENT',
-        data: sharedData
-      });
-    }
-    
-    console.log('Shared content processed:', sharedData);
-    
-    // ページのリロードを防ぐため、303リダイレクトで応答
-    return Response.redirect('/', 303);
-    
-  } catch (error) {
-    console.error('Error handling share target:', error);
-    return Response.redirect('/', 303);
-  }
-}
-
 // サービスワーカーのインストール
 self.addEventListener('install', (event) => {
   console.log('Service Worker installing...');
@@ -95,12 +44,6 @@ self.addEventListener('activate', (event) => {
 
 // ネットワークリクエストの処理
 self.addEventListener('fetch', (event) => {
-  // Web Share Target API のハンドリング
-  if (event.request.url.includes('/handle-share') && event.request.method === 'POST') {
-    event.respondWith(handleShareTarget(event.request));
-    return;
-  }
-
   // APIリクエストは常にネットワークから取得（オフライン時は失敗させる）
   if (event.request.url.includes('/api/')) {
     event.respondWith(
