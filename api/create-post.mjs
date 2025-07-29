@@ -1,5 +1,6 @@
 // /api/create-post.mjs
 import { kv } from '@vercel/kv';
+import { isKvAvailable } from './utils/kv-utils.mjs';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -176,10 +177,7 @@ async function fallbackLabelGeneration(content, existingLabels) {
   return foundLabels.length > 0 ? [...new Set(foundLabels)] : ['技術情報'];
 }
 
-// Vercel KVが利用可能かチェック
-function isKvAvailable() {
-  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
-}
+
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {

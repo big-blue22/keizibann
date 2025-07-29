@@ -1,11 +1,9 @@
 import { kv } from '@vercel/kv';
+import { isKvAvailable } from './utils/kv-utils.mjs';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Vercel KVが利用可能かチェック
-function isKvAvailable() {
-  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
-}
+
 
 // 開発環境用：ローカルファイルストレージ
 async function loadPostsLocal() {
