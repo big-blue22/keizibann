@@ -99,6 +99,42 @@ const PostForm = ({ onPostAdded }) => {
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null });
 
+  // 共有コンテンツの自動入力を処理
+  useEffect(() => {
+    // ページ読み込み時にsessionStorageをチェック
+    const checkSharedData = () => {
+      const sharedData = sessionStorage.getItem('sharedPostData');
+      if (sharedData) {
+        try {
+          const data = JSON.parse(sharedData);
+          setUrl(data.url || '');
+          setOriginalContent(data.originalContent || '');
+          sessionStorage.removeItem('sharedPostData'); // 使用後は削除
+        } catch (error) {
+          console.error('Error parsing shared data:', error);
+        }
+      }
+    };
+
+    // 共有コンテンツ受信イベントのリスナー
+    const handleSharedContent = (event) => {
+      const { url: sharedUrl, originalContent: sharedContent } = event.detail;
+      setUrl(sharedUrl || '');
+      setOriginalContent(sharedContent || '');
+    };
+
+    // 初回チェック
+    checkSharedData();
+    
+    // イベントリスナーを登録
+    window.addEventListener('sharedContentReceived', handleSharedContent);
+
+    // クリーンアップ
+    return () => {
+      window.removeEventListener('sharedContentReceived', handleSharedContent);
+    };
+  }, []);
+
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
     setStatus({ loading: true, error: null, success: null });
@@ -490,6 +526,19 @@ const App = () => {
     fetchPosts();
   }, []);
 
+  // 共有コンテンツ受信時に投稿作成タブに切り替え
+  useEffect(() => {
+    const handleSharedContent = () => {
+      setActiveTab('create');
+    };
+    
+    window.addEventListener('sharedContentReceived', handleSharedContent);
+    
+    return () => {
+      window.removeEventListener('sharedContentReceived', handleSharedContent);
+    };
+  }, []);
+
   // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
   const filteredPosts = useMemo(() => {
     if (!allPosts) return [];
@@ -686,10 +735,29 @@ if ('serviceWorker' in navigator) {
       // トースト通知を表示
       showToast('共有コンテンツを受け取りました！', 'success');
       
-      // 共有データを画面に表示
-      displaySharedContent(sharedData);
+      // 共有データを投稿フォームに自動入力するために保存
+      handleSharedContentForPostForm(sharedData);
     }
   });
+}
+
+// 共有コンテンツを投稿フォームで使用するための処理
+function handleSharedContentForPostForm(sharedData) {
+  // 共有データをsessionStorageに保存
+  sessionStorage.setItem('sharedPostData', JSON.stringify({
+    url: sharedData.url || '',
+    originalContent: sharedData.text || '',
+    title: sharedData.title || ''
+  }));
+  
+  // カスタムイベントを発火して React アプリに通知
+  window.dispatchEvent(new CustomEvent('sharedContentReceived', {
+    detail: {
+      url: sharedData.url || '',
+      originalContent: sharedData.text || '',
+      title: sharedData.title || ''
+    }
+  }));
 }
 
 // トースト通知を表示する関数
