@@ -9,6 +9,41 @@ const AXIOS_OPTIONS = {
   timeout: 5000, // 5秒でタイムアウト
 };
 
+// Mock preview data for example.com URLs (used in development/fallback scenarios)
+function getMockPreviewData(url) {
+  const mockData = {
+    'https://example.com/ai-trends': {
+      title: 'AI技術の最新トレンド',
+      description: 'AI技術の最新トレンドについて詳しく解説している記事です。',
+      image: 'https://via.placeholder.com/600x315/6366f1/ffffff?text=AI+Trends',
+      siteName: 'Example Tech Blog',
+      url: url
+    },
+    'https://example.com/react-tips': {
+      title: 'React開発のベストプラクティス',
+      description: 'React開発で役立つ実践的なテクニック集です。',
+      image: 'https://via.placeholder.com/600x315/06b6d4/ffffff?text=React+Tips',
+      siteName: 'Example Tech Blog',
+      url: url
+    },
+    'https://example.com/database-design': {
+      title: 'データベース設計の基本',
+      description: 'データベース設計の基本原則と実装のベストプラクティス。',
+      image: 'https://via.placeholder.com/600x315/10b981/ffffff?text=Database+Design',
+      siteName: 'Example Tech Blog',
+      url: url
+    }
+  };
+  
+  return mockData[url] || {
+    title: 'サンプル記事',
+    description: 'これはモックデータのサンプル記事です。',
+    image: 'https://via.placeholder.com/600x315/8b5cf6/ffffff?text=Sample+Article',
+    siteName: 'Example Site',
+    url: url
+  };
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
     return response.status(405).json({ error: 'GETメソッドのみ許可されています' });
@@ -20,6 +55,13 @@ export default async function handler(request, response) {
   if (!url || typeof url !== 'string') {
     console.log('無効なURL:', url);
     return response.status(400).json({ error: 'URLが指定されていません' });
+  }
+
+  // Check if this is a mock URL (example.com)
+  if (url.includes('example.com')) {
+    console.log('モックURLを検出、モックデータを返します:', url);
+    const mockPreviewData = getMockPreviewData(url);
+    return response.status(200).json(mockPreviewData);
   }
 
   try {
