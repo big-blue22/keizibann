@@ -11,34 +11,76 @@
   <script src="/btoa-polyfill.js"></script>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/dist/output.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
 <script>
-// 極力早期にbtoaをオーバーライド（ブラウザ拡張機能対策）
+// 超早期btoa緊急オーバーライド（拡張機能の読み込み前に実行）
 (function() {
-  if (typeof btoa !== 'undefined') {
-    const originalBtoa = btoa;
-    function safeBtoa(str) {
+  'use strict';
+  
+  function createEmergencyBtoa(originalBtoa) {
+    return function(str) {
+      if (typeof str !== 'string') str = String(str);
       try {
         return originalBtoa(str);
       } catch (error) {
         if (error.name === 'InvalidCharacterError') {
           try {
-            return originalBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, 
-              (match, p1) => String.fromCharCode(parseInt('0x' + p1))));
+            // 緊急エンコーディング: UTF-8 → エスケープ → Latin1 → Base64
+            const encoded = encodeURIComponent(str);
+            const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) => 
+              String.fromCharCode(parseInt(hex, 16)));
+            return originalBtoa(latin1);
           } catch (e) {
-            return '';
+            // 最終手段: 安全な代替値を返す
+            return originalBtoa('UTF8_CONTENT');
           }
         }
         throw error;
       }
-    }
-    
-    // 複数のスコープでオーバーライドを試行
-    try { window.btoa = safeBtoa; } catch(e) {}
-    try { self.btoa = safeBtoa; } catch(e) {}
-    try { globalThis.btoa = safeBtoa; } catch(e) {}
-    try { btoa = safeBtoa; } catch(e) {}
+    };
   }
+  
+  // 可能な限り早期に全コンテキストでオーバーライド
+  const contexts = [
+    typeof window !== 'undefined' ? window : null,
+    typeof self !== 'undefined' ? self : null,
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof global !== 'undefined' ? global : null
+  ].filter(ctx => ctx && ctx.btoa);
+  
+  contexts.forEach(ctx => {
+    if (ctx && ctx.btoa) {
+      try {
+        const original = ctx.btoa;
+        ctx.btoa = createEmergencyBtoa(original);
+        
+        // 複数回オーバーライドして確実性を高める
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 1);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 10);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 50);
+      } catch (e) {
+        // エラーが発生しても処理を続行
+      }
+    }
+  });
+  
+  // グローバル変数として安全なbtoaを提供
+  window.safeBtoa = function(str) {
+    try {
+      return (window.btoa || self.btoa || globalThis.btoa)(str);
+    } catch (e) {
+      if (e.name === 'InvalidCharacterError') {
+        try {
+          const encoded = encodeURIComponent(str);
+          const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) => 
+            String.fromCharCode(parseInt(hex, 16)));
+          return btoa(latin1);
+        } catch (e2) {
+          return btoa('ENCODING_ERROR');
+        }
+      }
+      throw e;
+    }
+  };
 })();
 </script>
 <script type="importmap">
@@ -55,51 +97,6 @@
 <body class="bg-slate-900 text-slate-100">
   <div id="root"></div>
   <script type="module">
-// 包括的なUTF-8対応Base64エンコーディング設定（ブラウザ拡張機能エラー対策）
-(function() {
-  'use strict';
-  
-  // UTF-8対応の安全なBase64エンコーディング関数
-  function createSafeBtoa(originalBtoa) {
-    return function(str) {
-      try {
-        return originalBtoa(str);
-      } catch (error) {
-        if (error.name === 'InvalidCharacterError') {
-          // UTF-8文字列を安全にBase64エンコード
-          try {
-            return originalBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-              return String.fromCharCode(parseInt('0x' + p1));
-            }));
-          } catch (fallbackError) {
-            console.warn('Base64 encoding failed for:', str, fallbackError);
-            return '';
-          }
-        }
-        throw error;
-      }
-    };
-  }
-  
-  // メインウィンドウのbtoaをオーバーライド
-  if (typeof window !== 'undefined' && window.btoa) {
-    const originalWindowBtoa = window.btoa;
-    window.btoa = createSafeBtoa(originalWindowBtoa);
-  }
-  
-  // グローバルスコープのbtoaもオーバーライド（可能な場合）
-  if (typeof self !== 'undefined' && self.btoa && self !== window) {
-    const originalSelfBtoa = self.btoa;
-    self.btoa = createSafeBtoa(originalSelfBtoa);
-  }
-  
-  // globalThisでも試行（最新のJavaScript環境対応）
-  if (typeof globalThis !== 'undefined' && globalThis.btoa) {
-    const originalGlobalBtoa = globalThis.btoa;
-    globalThis.btoa = createSafeBtoa(originalGlobalBtoa);
-  }
-})();
-
 // index.html の <script type="module"> の中身をこれに差し替える
 
 import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
