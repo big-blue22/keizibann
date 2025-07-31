@@ -101,6 +101,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 無効なURLや特殊なリクエストをフィルタリング
+  try {
+    const url = new URL(event.request.url);
+    
+    // 無効なURLやホストをチェック
+    if (!url.hostname || url.hostname === 'ffffff' || url.protocol === 'data:') {
+      console.log('Skipping invalid URL:', event.request.url);
+      return;
+    }
+  } catch (e) {
+    console.log('Skipping malformed URL:', event.request.url);
+    return;
+  }
+
   // APIリクエストは常にネットワークから取得（オフライン時は失敗させる）
   if (event.request.url.includes('/api/')) {
     event.respondWith(
@@ -141,16 +155,27 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
+              })
+              .catch((cacheError) => {
+                console.log('Cache put error:', cacheError);
               });
 
             return response;
           })
-          .catch(() => {
+          .catch((fetchError) => {
+            console.log('Fetch error:', fetchError);
             // ネットワークエラーの場合、HTMLリクエストなら基本ページを返す
             if (event.request.destination === 'document') {
               return caches.match(OFFLINE_URL);
             }
+            // その他のリクエストは通常のネットワークエラーを返す
+            throw fetchError;
           });
+      })
+      .catch((error) => {
+        console.log('Cache match error:', error);
+        // キャッシュエラーの場合はネットワークから直接取得を試行
+        return fetch(event.request);
       })
   );
 });

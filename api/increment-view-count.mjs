@@ -1,5 +1,6 @@
 // api/increment-view-count.mjs
 import { kv } from '@vercel/kv';
+import { isKvAvailable } from './utils/kv-utils.mjs';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -20,10 +21,7 @@ async function savePostsLocal(posts) {
   await fs.writeFile(POSTS_FILE, JSON.stringify(posts, null, 2));
 }
 
-// Vercel KVが利用可能かチェック
-function isKvAvailable() {
-  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
-}
+
 
 // IPアドレスを取得
 function getClientIP(request) {
@@ -139,50 +137,58 @@ export default async function handler(request, response) {
 
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
-      const posts = await kv.lrange('posts', 0, -1);
-      let postToUpdate = null;
-      let postIndex = -1;
+      try {
+        const posts = await kv.lrange('posts', 0, -1);
+        let postToUpdate = null;
+        let postIndex = -1;
 
-      for (let i = 0; i < posts.length; i++) {
-        try {
-          let post;
-          // 既にオブジェクトの場合
-          if (typeof posts[i] === 'object' && posts[i] !== null) {
-            post = posts[i];
+        for (let i = 0; i < posts.length; i++) {
+          try {
+            let post;
+            // 既にオブジェクトの場合
+            if (typeof posts[i] === 'object' && posts[i] !== null) {
+              post = posts[i];
+            }
+            // 文字列の場合はJSON.parseを試行
+            else if (typeof posts[i] === 'string') {
+              post = JSON.parse(posts[i]);
+            }
+            else {
+              continue; // 不明なデータはスキップ
+            }
+            
+            if (post.id === postId) {
+              postToUpdate = post;
+              postIndex = i;
+              break;
+            }
+          } catch (e) {
+            console.error(`Error parsing post at index ${i}:`, posts[i], e);
           }
-          // 文字列の場合はJSON.parseを試行
-          else if (typeof posts[i] === 'string') {
-            post = JSON.parse(posts[i]);
-          }
-          else {
-            continue; // 不明なデータはスキップ
-          }
-          
-          if (post.id === postId) {
-            postToUpdate = post;
-            postIndex = i;
-            break;
-          }
-        } catch (e) {
-          console.error(`Error parsing post at index ${i}:`, posts[i], e);
         }
-      }
 
-      if (postToUpdate && postIndex !== -1) {
-        // 総閲覧数をインクリメント
-        postToUpdate.viewCount = (postToUpdate.viewCount || 0) + 1;
-        
-        // 直近3日間の閲覧数を更新
-        postToUpdate = updateRecentViews(postToUpdate);
-        
-        // 直近3日間の合計閲覧数を計算
-        postToUpdate.recentViewCount = calculateRecentViewCount(postToUpdate.recentViews);
-        
-        // 確実にJSON文字列として保存
-        await kv.lset('posts', postIndex, JSON.stringify(postToUpdate));
-        return response.status(200).json({ success: true, post: postToUpdate });
-      } else {
-        return response.status(404).json({ message: '投稿が見つかりませんでした。' });
+        if (postToUpdate && postIndex !== -1) {
+          // 総閲覧数をインクリメント
+          postToUpdate.viewCount = (postToUpdate.viewCount || 0) + 1;
+          
+          // 直近3日間の閲覧数を更新
+          postToUpdate = updateRecentViews(postToUpdate);
+          
+          // 直近3日間の合計閲覧数を計算
+          postToUpdate.recentViewCount = calculateRecentViewCount(postToUpdate.recentViews);
+          
+          // 確実にJSON文字列として保存
+          await kv.lset('posts', postIndex, JSON.stringify(postToUpdate));
+          return response.status(200).json({ success: true, post: postToUpdate });
+        } else {
+          return response.status(404).json({ message: '投稿が見つかりませんでした。' });
+        }
+      } catch (kvError) {
+        console.error('❌ KV operation error:', kvError.message);
+        return response.status(503).json({ 
+          message: 'サービスが一時的に利用できません。しばらく後でお試しください。',
+          error: 'KV service unavailable'
+        });
       }
     } else {
       // 開発環境：ローカルファイルを使用
