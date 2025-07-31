@@ -8,6 +8,38 @@ const urlsToCache = [
   '/manifest.json'
 ];
 
+// UTF-8対応のBase64エンコーディング関数（btoa の代替）
+function safeBase64Encode(str) {
+  try {
+    // UTF-8バイト列に変換してからBase64エンコード
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+      return String.fromCharCode(parseInt('0x' + p1));
+    }));
+  } catch (error) {
+    console.warn('Base64 encoding failed, returning original string:', error);
+    return str;
+  }
+}
+
+// データ送信時の安全な処理
+function safePostMessage(client, data) {
+  try {
+    // 日本語文字列が含まれる可能性があるデータを安全に処理
+    const safeData = JSON.parse(JSON.stringify(data));
+    client.postMessage(safeData);
+  } catch (error) {
+    console.error('Safe postMessage failed:', error);
+    // フォールバック: 安全なデータのみ送信
+    client.postMessage({
+      type: data.type || 'SHARED_CONTENT',
+      data: {
+        timestamp: new Date().toISOString(),
+        error: 'Data encoding failed'
+      }
+    });
+  }
+}
+
 // Web Share Target API のハンドリング関数
 async function handleShareTarget(request) {
   try {
@@ -39,10 +71,10 @@ async function handleShareTarget(request) {
       timestamp: new Date().toISOString()
     };
     
-    // アクティブなクライアントに共有データを送信
+    // アクティブなクライアントに共有データを送信（安全な方法で）
     const clients = await self.clients.matchAll({ includeUncontrolled: true });
     for (const client of clients) {
-      client.postMessage({
+      safePostMessage(client, {
         type: 'SHARED_CONTENT',
         data: sharedData
       });

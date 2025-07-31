@@ -23,6 +23,27 @@
 <body class="bg-slate-900 text-slate-100">
   <div id="root"></div>
   <script type="module">
+// UTF-8対応のBase64エンコーディング関数（btoa エラー対策）
+const originalBtoa = window.btoa;
+window.btoa = function(str) {
+  try {
+    return originalBtoa(str);
+  } catch (error) {
+    if (error.name === 'InvalidCharacterError') {
+      // UTF-8文字列を安全にBase64エンコード
+      try {
+        return originalBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+          return String.fromCharCode(parseInt('0x' + p1));
+        }));
+      } catch (fallbackError) {
+        console.warn('Base64 encoding failed for:', str, fallbackError);
+        return '';
+      }
+    }
+    throw error;
+  }
+};
+
 // index.html の <script type="module"> の中身をこれに差し替える
 
 import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
