@@ -5,7 +5,8 @@ const OFFLINE_URL = '/';
 const urlsToCache = [
   '/',
   '/dist/output.css',
-  '/manifest.json'
+  '/manifest.json',
+  '/btoa-polyfill.js'
 ];
 
 // UTF-8対応のBase64エンコーディング関数（btoa の代替）
@@ -20,6 +21,27 @@ function safeBase64Encode(str) {
     return str;
   }
 }
+
+// Service Worker内でbtoaをオーバーライド（拡張機能のエラー対策）
+const originalServiceWorkerBtoa = self.btoa;
+self.btoa = function(str) {
+  try {
+    return originalServiceWorkerBtoa(str);
+  } catch (error) {
+    if (error.name === 'InvalidCharacterError') {
+      // UTF-8文字列を安全にBase64エンコード
+      try {
+        return originalServiceWorkerBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+          return String.fromCharCode(parseInt('0x' + p1));
+        }));
+      } catch (fallbackError) {
+        console.warn('Service Worker Base64 encoding failed for:', str, fallbackError);
+        return '';
+      }
+    }
+    throw error;
+  }
+};
 
 // データ送信時の安全な処理
 function safePostMessage(client, data) {
