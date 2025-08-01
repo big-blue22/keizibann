@@ -5,8 +5,122 @@ const OFFLINE_URL = '/';
 const urlsToCache = [
   '/',
   '/dist/output.css',
-  '/manifest.json'
+  '/manifest.json',
+  '/btoa-polyfill.js'
 ];
+
+// UTF-8対応のBase64エンコーディング関数（btoa の代替）
+function safeBase64Encode(str) {
+  try {
+    // UTF-8バイト列に変換してからBase64エンコード
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+      return String.fromCharCode(parseInt('0x' + p1));
+    }));
+  } catch (error) {
+    console.warn('Base64 encoding failed, returning original string:', error);
+    return str;
+  }
+}
+
+// 超強化Service Worker btoa オーバーライド（拡張機能WorkerGlobalScopeエラー完全対策）
+(function() {
+  'use strict';
+  
+  // 元のbtoaを保存
+  const originalServiceWorkerBtoa = self.btoa;
+  
+  // 最強のbtoaラッパー関数
+  function ultraSafeBtoa(str) {
+    // 引数チェック
+    if (typeof str !== 'string') {
+      str = String(str);
+    }
+    
+    try {
+      // 第一段階: 標準のbtoaを試行
+      return originalServiceWorkerBtoa(str);
+    } catch (error) {
+      if (error.name === 'InvalidCharacterError') {
+        // 第二段階: UTF-8 → URLエンコード → Latin1 → Base64
+        try {
+          const encoded = encodeURIComponent(str);
+          const latin1String = encoded.replace(/%([0-9A-F]{2})/g, function(match, hex) {
+            return String.fromCharCode(parseInt(hex, 16));
+          });
+          return originalServiceWorkerBtoa(latin1String);
+        } catch (fallbackError1) {
+          // 第三段階: 文字単位での安全エンコーディング
+          try {
+            let safeString = '';
+            for (let i = 0; i < str.length; i++) {
+              const charCode = str.charCodeAt(i);
+              if (charCode <= 255) {
+                // Latin1範囲なのでそのまま
+                safeString += str.charAt(i);
+              } else {
+                // Latin1範囲外の文字は置換マーカーに変換
+                safeString += '?';
+              }
+            }
+            return originalServiceWorkerBtoa(safeString);
+          } catch (fallbackError2) {
+            // 第四段階: 完全なフォールバック
+            try {
+              return originalServiceWorkerBtoa('NON_LATIN1_CONTENT_DETECTED');
+            } catch (fallbackError3) {
+              // 最終手段
+              console.error('Service Worker btoa: All encoding strategies failed');
+              return 'QklOQVJZX0NPTlRFTlQ='; // "BINARY_CONTENT" in Base64
+            }
+          }
+        }
+      }
+      // InvalidCharacterError以外のエラーはそのまま投げる
+      throw error;
+    }
+  }
+  
+  // Service Workerのselfスコープでbtoaをオーバーライド
+  self.btoa = ultraSafeBtoa;
+  
+  // グローバルオブジェクトでも設定（WorkerGlobalScope対策）
+  if (typeof WorkerGlobalScope !== 'undefined') {
+    WorkerGlobalScope.prototype.btoa = ultraSafeBtoa;
+  }
+  
+  // Serviceワーカー専用の追加対策
+  try {
+    Object.defineProperty(self, 'btoa', {
+      value: ultraSafeBtoa,
+      writable: false,
+      enumerable: true,
+      configurable: false
+    });
+  } catch (defineError) {
+    // プロパティ定義に失敗してもオーバーライド自体は成功しているので続行
+  }
+  
+  console.log('Service Worker: Ultra-safe btoa override applied');
+})();
+
+// データ送信時の安全な処理
+function safePostMessage(client, data) {
+  try {
+    // 日本語文字列が含まれる可能性があるデータを安全に処理
+    const safeData = JSON.parse(JSON.stringify(data));
+    client.postMessage(safeData);
+  } catch (error) {
+    console.error('Safe postMessage failed:', error);
+    // フォールバック: 安全なデータのみ送信
+    client.postMessage({
+      type: data.type || 'SHARED_CONTENT',
+      data: {
+        timestamp: new Date().toISOString(),
+        error: 'Data encoding failed'
+      }
+    });
+  }
+}
 
 // Web Share Target API のハンドリング関数
 async function handleShareTarget(request) {
@@ -39,10 +153,10 @@ async function handleShareTarget(request) {
       timestamp: new Date().toISOString()
     };
     
-    // アクティブなクライアントに共有データを送信
+    // アクティブなクライアントに共有データを送信（安全な方法で）
     const clients = await self.clients.matchAll({ includeUncontrolled: true });
     for (const client of clients) {
-      client.postMessage({
+      safePostMessage(client, {
         type: 'SHARED_CONTENT',
         data: sharedData
       });

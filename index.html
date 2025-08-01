@@ -6,9 +6,83 @@
   <title>AI Tech Share Hub</title>
   <meta name="description" content="AI技術を共有し、学び合うためのプラットフォーム">
   <meta name="theme-color" content="#a855f7">
+  <meta name="content-encoding" content="utf-8">
+  <meta name="language" content="ja-JP">
+  <script src="/btoa-polyfill.js"></script>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/dist/output.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
+<script>
+// 超早期btoa緊急オーバーライド（拡張機能の読み込み前に実行）
+(function() {
+  'use strict';
+  
+  function createEmergencyBtoa(originalBtoa) {
+    return function(str) {
+      if (typeof str !== 'string') str = String(str);
+      try {
+        return originalBtoa(str);
+      } catch (error) {
+        if (error.name === 'InvalidCharacterError') {
+          try {
+            // 緊急エンコーディング: UTF-8 → エスケープ → Latin1 → Base64
+            const encoded = encodeURIComponent(str);
+            const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) => 
+              String.fromCharCode(parseInt(hex, 16)));
+            return originalBtoa(latin1);
+          } catch (e) {
+            // 最終手段: 安全な代替値を返す
+            return originalBtoa('UTF8_CONTENT');
+          }
+        }
+        throw error;
+      }
+    };
+  }
+  
+  // 可能な限り早期に全コンテキストでオーバーライド
+  const contexts = [
+    typeof window !== 'undefined' ? window : null,
+    typeof self !== 'undefined' ? self : null,
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof global !== 'undefined' ? global : null
+  ].filter(ctx => ctx && ctx.btoa);
+  
+  contexts.forEach(ctx => {
+    if (ctx && ctx.btoa) {
+      try {
+        const original = ctx.btoa;
+        ctx.btoa = createEmergencyBtoa(original);
+        
+        // 複数回オーバーライドして確実性を高める
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 1);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 10);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 50);
+      } catch (e) {
+        // エラーが発生しても処理を続行
+      }
+    }
+  });
+  
+  // グローバル変数として安全なbtoaを提供
+  window.safeBtoa = function(str) {
+    try {
+      return (window.btoa || self.btoa || globalThis.btoa)(str);
+    } catch (e) {
+      if (e.name === 'InvalidCharacterError') {
+        try {
+          const encoded = encodeURIComponent(str);
+          const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) => 
+            String.fromCharCode(parseInt(hex, 16)));
+          return btoa(latin1);
+        } catch (e2) {
+          return btoa('ENCODING_ERROR');
+        }
+      }
+      throw e;
+    }
+  };
+})();
+</script>
 <script type="importmap">
 {
   "imports": {

@@ -2,6 +2,8 @@
 
 import { kv } from '@vercel/kv';
 import { isKvAvailable } from './utils/kv-utils.mjs';
+import fs from 'fs/promises';
+import path from 'path';
 
 
 
@@ -46,8 +48,25 @@ export default async function handler(request, response) {
     
     // Vercel KVが利用可能かチェック
     if (!isKvAvailable()) {
-      console.log('❌ KV not available - returning empty posts array');
-      return response.status(200).json([]);
+      console.log('❌ KV not available - falling back to local data');
+      
+      // ローカルファイルからデータを読み込み
+      try {
+        const localDataPath = path.join(process.cwd(), 'data', 'posts.json');
+        const localData = await fs.readFile(localDataPath, 'utf-8');
+        const localPosts = JSON.parse(localData);
+        console.log(`📁 Loaded ${localPosts.length} posts from local file`);
+        
+        // ローカルデータを正規化して返す
+        const normalizedPosts = localPosts.map(post => normalizePost(post));
+        normalizedPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return response.status(200).json(normalizedPosts);
+        
+      } catch (localError) {
+        console.error('❌ Local data fetch error:', localError.message);
+        console.log('🔄 No local data available, returning empty posts array');
+        return response.status(200).json([]);
+      }
     }
 
     console.log('✅ KV available, fetching posts...');
@@ -59,8 +78,23 @@ export default async function handler(request, response) {
       console.log(`📊 Raw posts from KV: ${rawPosts.length} items`);
     } catch (kvError) {
       console.error('❌ KV fetch error:', kvError.message);
-      console.log('🔄 KV unavailable, returning empty posts array');
-      return response.status(200).json([]);
+      console.log('🔄 KV unavailable, falling back to local data');
+      
+      // KVエラー時もローカルデータにフォールバック
+      try {
+        const localDataPath = path.join(process.cwd(), 'data', 'posts.json');
+        const localData = await fs.readFile(localDataPath, 'utf-8');
+        const localPosts = JSON.parse(localData);
+        console.log(`📁 Fallback: Loaded ${localPosts.length} posts from local file`);
+        
+        const normalizedPosts = localPosts.map(post => normalizePost(post));
+        normalizedPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return response.status(200).json(normalizedPosts);
+        
+      } catch (localError) {
+        console.error('❌ Local data fallback error:', localError.message);
+        return response.status(200).json([]);
+      }
     }
     
     if (rawPosts.length === 0) {

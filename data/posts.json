@@ -1,50 +1,5 @@
 [
   {
-    "id": "post_test_1751509565395",
-    "url": "https://example.com/test",
-    "title": "テスト投稿",
-    "summary": "これは24時間以内の投稿をテストするための投稿です。緑色のカードで表示されるはずです。",
-    "labels": [
-      "テスト",
-      "新機能"
-    ],
-    "createdAt": "2025-07-03T02:26:05.395Z",
-    "viewCount": 0,
-    "recentViews": {},
-    "recentViewCount": 0,
-    "commentCount": 0
-  },
-  {
-    "id": "post_test_1751509545058",
-    "url": "https://example.com/test",
-    "title": "テスト投稿",
-    "summary": "これは24時間以内の投稿をテストするための投稿です。緑色のカードで表示されるはずです。",
-    "labels": [
-      "テスト",
-      "新機能"
-    ],
-    "createdAt": "2025-07-03T02:25:45.058Z",
-    "viewCount": 0,
-    "recentViews": {},
-    "recentViewCount": 0,
-    "commentCount": 0
-  },
-  {
-    "id": "post_test_1751509532763",
-    "url": "https://example.com/test",
-    "title": "テスト投稿",
-    "summary": "これは24時間以内の投稿をテストするための投稿です。緑色のカードで表示されるはずです。",
-    "labels": [
-      "テスト",
-      "新機能"
-    ],
-    "createdAt": "2025-07-03T02:25:32.763Z",
-    "viewCount": 0,
-    "recentViews": {},
-    "recentViewCount": 0,
-    "commentCount": 0
-  },
-  {
     "id": "post_1750932805991",
     "url": "https://x.com/genspark_japan/status/1938175412863164522",
     "title": "Gensparkの進化可能性",
