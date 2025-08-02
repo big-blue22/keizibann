@@ -641,6 +641,13 @@ const App = () => {
     const token = localStorage.getItem('admin-token');
     if (token) setIsAdmin(true);
     
+    // 共有コンテンツが検出された場合、新規投稿タブに切り替える
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('shared') === 'true') {
+      console.log('Shared content detected, switching to create tab');
+      setActiveTab('create');
+    }
+    
     const fetchPosts = async () => {
       try {
         console.log('📡 Fetching posts from API...');
