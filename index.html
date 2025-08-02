@@ -175,18 +175,6 @@ const PostForm = ({ onPostAdded }) => {
 
   // 共有コンテンツの自動入力を処理
   useEffect(() => {
-    // URL判定関数
-    const isURL = (text) => {
-      if (!text) return false;
-      try {
-        new URL(text);
-        return true;
-      } catch {
-        // より柔軟なURL判定
-        return /^https?:\/\/\S+\.\S+/.test(text);
-      }
-    };
-
     // ページ読み込み時にsessionStorageをチェック
     const checkSharedData = () => {
       const sharedData = sessionStorage.getItem('sharedPostData');
@@ -202,36 +190,6 @@ const PostForm = ({ onPostAdded }) => {
       }
     };
 
-    // ページ読み込み時にlocalStorageの pendingShare をチェック
-    const checkPendingShareData = () => {
-      const pendingShare = localStorage.getItem('pendingShare');
-      if (pendingShare) {
-        try {
-          const data = JSON.parse(pendingShare);
-          console.log('Processing pending share data:', data);
-          
-          // スマートURL検出ロジック
-          let detectedUrl = data.url || '';
-          let detectedContent = data.text || '';
-          
-          // textパラメータがURLの場合、URLフィールドに移動
-          if (!detectedUrl && isURL(data.text)) {
-            detectedUrl = data.text;
-            detectedContent = data.title || ''; // titleを内容として使用
-          }
-          
-          setUrl(detectedUrl);
-          setOriginalContent(detectedContent);
-          localStorage.removeItem('pendingShare'); // 使用後は削除
-          
-          console.log('URL field set to:', detectedUrl);
-          console.log('Content field set to:', detectedContent);
-        } catch (error) {
-          console.error('Error parsing pending share data:', error);
-        }
-      }
-    };
-
     // 共有コンテンツ受信イベントのリスナー
     const handleSharedContent = (event) => {
       const { url: sharedUrl, originalContent: sharedContent } = event.detail;
@@ -241,7 +199,6 @@ const PostForm = ({ onPostAdded }) => {
 
     // 初回チェック
     checkSharedData();
-    checkPendingShareData();
     
     // イベントリスナーを登録
     window.addEventListener('sharedContentReceived', handleSharedContent);
@@ -860,40 +817,18 @@ if ('serviceWorker' in navigator) {
 
 // 共有コンテンツを投稿フォームで使用するための処理
 function handleSharedContentForPostForm(sharedData) {
-  // URL判定関数
-  const isURL = (text) => {
-    if (!text) return false;
-    try {
-      new URL(text);
-      return true;
-    } catch {
-      // より柔軟なURL判定
-      return /^https?:\/\/\S+\.\S+/.test(text);
-    }
-  };
-
-  // スマートURL検出ロジック
-  let detectedUrl = sharedData.url || '';
-  let detectedContent = sharedData.text || '';
-  
-  // textパラメータがURLの場合、URLフィールドに移動
-  if (!detectedUrl && isURL(sharedData.text)) {
-    detectedUrl = sharedData.text;
-    detectedContent = sharedData.title || ''; // titleを内容として使用
-  }
-  
   // 共有データをsessionStorageに保存
   sessionStorage.setItem('sharedPostData', JSON.stringify({
-    url: detectedUrl,
-    originalContent: detectedContent,
+    url: sharedData.url || '',
+    originalContent: sharedData.text || '',
     title: sharedData.title || ''
   }));
   
   // カスタムイベントを発火して React アプリに通知
   window.dispatchEvent(new CustomEvent('sharedContentReceived', {
     detail: {
-      url: detectedUrl,
-      originalContent: detectedContent,
+      url: sharedData.url || '',
+      originalContent: sharedData.text || '',
       title: sharedData.title || ''
     }
   }));
