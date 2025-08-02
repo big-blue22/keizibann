@@ -178,9 +178,12 @@ const PostForm = ({ onPostAdded }) => {
   
   // 共有データのチェックと自動入力
   useEffect(() => {
+    console.log('useEffect triggered, checking for shared data');
+    
     // URLパラメータをチェック
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('shared') === 'true') {
+      console.log('Shared parameter detected');
       // localStorageから共有データを取得
       const pendingShareData = localStorage.getItem('pendingShare');
       if (pendingShareData) {
@@ -219,11 +222,23 @@ const PostForm = ({ onPostAdded }) => {
           
           // URLが見つかった場合のみ処理
           if (foundUrl) {
+            console.log('Before setUrl - current url state:', url);
             setUrl(foundUrl);
-            console.log('Setting URL field to:', foundUrl);
+            console.log('After setUrl call - setting to:', foundUrl);
+            
+            // DOM要素も直接確認
+            setTimeout(() => {
+              const urlInput = document.getElementById('url');
+              if (urlInput) {
+                console.log('DOM input value after setState:', urlInput.value);
+                // 強制的にDOM要素の値も設定
+                urlInput.value = foundUrl;
+                console.log('Force set DOM value to:', foundUrl);
+              }
+            }, 100);
             
             // 成功メッセージを表示
-            setStatus({ loading: false, error: null, success: '共有されたURLを受け取りました！' });
+            setStatus({ loading: false, error: null, success: `共有されたURL「${foundUrl}」を受け取りました！` });
           } else {
             console.log('No URL found in shared data');
             setStatus({ loading: false, error: 'URLが見つかりませんでした', success: null });
@@ -242,6 +257,20 @@ const PostForm = ({ onPostAdded }) => {
       }
     }
   }, []);
+  
+  // URL state の変更を監視
+  useEffect(() => {
+    console.log('URL state changed to:', url);
+    if (url) {
+      setTimeout(() => {
+        const urlInput = document.getElementById('url');
+        if (urlInput && urlInput.value !== url) {
+          console.log('Force updating DOM input value from', urlInput.value, 'to', url);
+          urlInput.value = url;
+        }
+      }, 50);
+    }
+  }, [url]);
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
