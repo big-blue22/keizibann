@@ -13,11 +13,21 @@
   </div>
   
   <script>
+    console.log('share-target.html loaded');
+    console.log('Full URL:', window.location.href);
+    console.log('Search params:', window.location.search);
+    
     // URLパラメータから共有データを取得
     const params = new URLSearchParams(window.location.search);
     const sharedUrl = params.get('url');
     const sharedTitle = params.get('title');
     const sharedText = params.get('text');
+    
+    console.log('Parsed params:', {
+      url: sharedUrl,
+      title: sharedTitle,
+      text: sharedText
+    });
     
     // 共有データを保存
     if (sharedUrl || sharedTitle || sharedText) {
@@ -28,12 +38,26 @@
         timestamp: Date.now()
       };
       
+      console.log('Saving share data:', shareData);
+      
       // localStorageに保存
       localStorage.setItem('pendingShare', JSON.stringify(shareData));
+      
+      // デバッグ用に画面にも表示
+      document.querySelector('h1').textContent = '共有データを受け取りました';
+      
+      // 少し待ってからリダイレクト
+      setTimeout(() => {
+        console.log('Redirecting to index.html');
+        window.location.href = '/?shared=true';
+      }, 1000);
+    } else {
+      console.log('No share data found');
+      document.querySelector('h1').textContent = '共有データが見つかりません';
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
     }
-    
-    // index.htmlへリダイレクト
-    window.location.href = '/?shared=true';
   </script>
 </body>
 </html>

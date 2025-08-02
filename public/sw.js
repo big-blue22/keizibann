@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-tech-hub-v1';
+const CACHE_NAME = 'ai-tech-hub-v2'; // バージョンを更新してキャッシュをリフレッシュ
 const OFFLINE_URL = '/';
 
 // キャッシュするリソース
@@ -6,7 +6,8 @@ const urlsToCache = [
   '/',
   '/dist/output.css',
   '/manifest.json',
-  '/btoa-polyfill.js'
+  '/btoa-polyfill.js',
+  '/share-target.html'
 ];
 
 // UTF-8対応のBase64エンコーディング関数（btoa の代替）
@@ -210,10 +211,8 @@ self.addEventListener('activate', (event) => {
 // ネットワークリクエストの処理
 self.addEventListener('fetch', (event) => {
   // Web Share Target API のハンドリング
-  if (event.request.url.includes('/handle-share') && event.request.method === 'POST') {
-    event.respondWith(handleShareTarget(event.request));
-    return;
-  }
+  // 注意: manifest.jsonでGETメソッドに変更したため、share-target.htmlが直接処理します
+  // Service Workerでの特別な処理は不要
 
   // 無効なURLや特殊なリクエストをフィルタリング
   try {

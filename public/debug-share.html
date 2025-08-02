@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Target Debug</title>
+  <link rel="stylesheet" href="/dist/output.css">
+</head>
+<body class="bg-slate-900 text-slate-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-8">Web Share Target デバッグ</h1>
+    
+    <div class="bg-slate-800 p-6 rounded-lg mb-6">
+      <h2 class="text-xl font-semibold mb-4">1. PWAインストール状況</h2>
+      <div id="pwa-status" class="text-sm"></div>
+    </div>
+    
+    <div class="bg-slate-800 p-6 rounded-lg mb-6">
+      <h2 class="text-xl font-semibold mb-4">2. Service Worker状況</h2>
+      <div id="sw-status" class="text-sm"></div>
+      <button onclick="updateServiceWorker()" class="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded">
+        Service Workerを更新
+      </button>
+    </div>
+    
+    <div class="bg-slate-800 p-6 rounded-lg mb-6">
+      <h2 class="text-xl font-semibold mb-4">3. Manifest確認</h2>
+      <div id="manifest-status" class="text-sm"></div>
+    </div>
+    
+    <div class="bg-slate-800 p-6 rounded-lg mb-6">
+      <h2 class="text-xl font-semibold mb-4">4. localStorage確認</h2>
+      <div id="storage-status" class="text-sm"></div>
+      <button onclick="clearStorage()" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded">
+        localStorageをクリア
+      </button>
+    </div>
+    
+    <div class="bg-slate-800 p-6 rounded-lg mb-6">
+      <h2 class="text-xl font-semibold mb-4">5. 直接テスト</h2>
+      <p class="mb-4">以下のリンクで直接share-target.htmlをテスト:</p>
+      <a href="/share-target.html?url=https://example.com&title=テストタイトル&text=テストテキスト" 
+         class="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 rounded">
+        share-target.htmlを開く
+      </a>
+    </div>
+    
+    <div class="bg-slate-800 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-4">6. 推奨手順</h2>
+      <ol class="list-decimal list-inside space-y-2">
+        <li>既存のPWAをアンインストール</li>
+        <li>ブラウザのキャッシュをクリア</li>
+        <li>Service Workerを更新（上のボタン）</li>
+        <li>PWAを再インストール</li>
+        <li>他のアプリから共有を試す</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    // PWAインストール状況チェック
+    async function checkPWAStatus() {
+      const status = document.getElementById('pwa-status');
+      let html = '';
+      
+      // スタンドアロンモードかどうか
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        html += '<p class="text-green-400">✅ PWAとして実行中</p>';
+      } else {
+        html += '<p class="text-yellow-400">⚠️ ブラウザモードで実行中</p>';
+      }
+      
+      // インストール可能かどうか
+      if ('getInstalledRelatedApps' in navigator) {
+        try {
+          const relatedApps = await navigator.getInstalledRelatedApps();
+          if (relatedApps.length > 0) {
+            html += '<p class="text-green-400">✅ PWAがインストール済み</p>';
+          } else {
+            html += '<p class="text-yellow-400">⚠️ PWAがインストールされていません</p>';
+          }
+        } catch (e) {
+          html += '<p class="text-gray-400">インストール状況を確認できません</p>';
+        }
+      }
+      
+      status.innerHTML = html;
+    }
+    
+    // Service Worker状況チェック
+    async function checkServiceWorker() {
+      const status = document.getElementById('sw-status');
+      let html = '';
+      
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          html += '<p class="text-green-400">✅ Service Worker登録済み</p>';
+          html += `<p>Scope: ${registration.scope}</p>`;
+          html += `<p>State: ${registration.active ? 'Active' : 'Not Active'}</p>`;
+          
+          // キャッシュ名確認
+          const cacheNames = await caches.keys();
+          html += `<p>キャッシュ: ${cacheNames.join(', ')}</p>`;
+        } else {
+          html += '<p class="text-red-400">❌ Service Worker未登録</p>';
+        }
+      } else {
+        html += '<p class="text-red-400">❌ Service Worker未対応</p>';
+      }
+      
+      status.innerHTML = html;
+    }
+    
+    // Manifest確認
+    async function checkManifest() {
+      const status = document.getElementById('manifest-status');
+      let html = '';
+      
+      try {
+        const response = await fetch('/manifest.json');
+        const manifest = await response.json();
+        
+        html += '<p class="text-green-400">✅ Manifest読み込み成功</p>';
+        
+        if (manifest.share_target) {
+          html += '<p class="text-green-400">✅ share_target設定あり</p>';
+          html += '<pre class="mt-2 p-2 bg-slate-700 rounded text-xs overflow-auto">';
+          html += JSON.stringify(manifest.share_target, null, 2);
+          html += '</pre>';
+        } else {
+          html += '<p class="text-red-400">❌ share_target設定なし</p>';
+        }
+      } catch (e) {
+        html += '<p class="text-red-400">❌ Manifest読み込み失敗: ' + e.message + '</p>';
+      }
+      
+      status.innerHTML = html;
+    }
+    
+    // localStorage確認
+    function checkStorage() {
+      const status = document.getElementById('storage-status');
+      let html = '';
+      
+      const pendingShare = localStorage.getItem('pendingShare');
+      if (pendingShare) {
+        html += '<p class="text-yellow-400">⚠️ 保留中の共有データあり:</p>';
+        html += '<pre class="mt-2 p-2 bg-slate-700 rounded text-xs overflow-auto">';
+        html += JSON.stringify(JSON.parse(pendingShare), null, 2);
+        html += '</pre>';
+      } else {
+        html += '<p class="text-gray-400">保留中の共有データなし</p>';
+      }
+      
+      status.innerHTML = html;
+    }
+    
+    // Service Worker更新
+    async function updateServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          registration.update();
+          alert('Service Workerの更新を開始しました。ページを再読み込みしてください。');
+        }
+      }
+    }
+    
+    // localStorage クリア
+    function clearStorage() {
+      localStorage.removeItem('pendingShare');
+      checkStorage();
+      alert('localStorageをクリアしました');
+    }
+    
+    // 初期チェック
+    checkPWAStatus();
+    checkServiceWorker();
+    checkManifest();
+    checkStorage();
+    
+    // Service Worker メッセージリスナー
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        console.log('Service Worker message:', event.data);
+        if (event.data.type === 'SHARED_CONTENT') {
+          alert('Service Workerから共有データを受信しました！');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
