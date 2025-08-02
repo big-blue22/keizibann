@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL共有 - AI技術共有ハブ</title>
+  <meta name="description" content="共有されたURLから新しい投稿を作成">
+  <meta name="theme-color" content="#a855f7">
+  <link rel="stylesheet" href="/dist/output.css">
+  <link rel="manifest" href="/manifest.json">
+  <script src="/btoa-polyfill.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+    <h1 class="text-2xl font-bold text-purple-400">URL共有</h1>
+    <a href="/" class="px-4 py-2 bg-slate-700 text-slate-200 rounded hover:bg-slate-600 transition-colors">
+      ← メインページに戻る
+    </a>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+      <!-- Shared Content Display Section -->
+      <section class="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
+        <h2 class="text-xl font-semibold text-purple-400 mb-4">共有されたコンテンツ</h2>
+        
+        <!-- Loading State -->
+        <div id="loading-state" class="flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+          <span class="ml-3 text-slate-400">共有データを読み込んでいます...</span>
+        </div>
+
+        <!-- Shared Content Display -->
+        <div id="shared-content" class="hidden">
+          <!-- URL Display -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-300 mb-2">共有されたURL</label>
+            <div class="bg-slate-700 rounded-lg p-3 border border-slate-600">
+              <a id="shared-url" href="#" target="_blank" rel="noopener noreferrer" 
+                 class="text-purple-400 hover:text-purple-300 break-all underline decoration-dotted">
+              </a>
+            </div>
+          </div>
+
+          <!-- Title Display (if available) -->
+          <div id="title-section" class="mb-4 hidden">
+            <label class="block text-sm font-medium text-slate-300 mb-2">タイトル</label>
+            <div class="bg-slate-700 rounded-lg p-3 border border-slate-600">
+              <span id="shared-title" class="text-slate-200"></span>
+            </div>
+          </div>
+
+          <!-- Text Content Display (if available) -->
+          <div id="text-section" class="mb-4 hidden">
+            <label class="block text-sm font-medium text-slate-300 mb-2">共有テキスト</label>
+            <div class="bg-slate-700 rounded-lg p-3 border border-slate-600">
+              <span id="shared-text" class="text-slate-200 whitespace-pre-wrap"></span>
+            </div>
+          </div>
+
+          <!-- URL Preview -->
+          <div id="url-preview-section" class="mb-4">
+            <label class="block text-sm font-medium text-slate-300 mb-2">URLプレビュー</label>
+            <div id="url-preview-loading" class="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+              <div class="flex items-center">
+                <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-purple-400"></div>
+                <span class="ml-2 text-sm text-slate-400">プレビューを読み込んでいます...</span>
+              </div>
+            </div>
+            <div id="url-preview-content" class="hidden bg-slate-700/50 rounded-lg border border-slate-600">
+              <!-- Preview content will be inserted here -->
+            </div>
+            <div id="url-preview-error" class="hidden bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+              <span class="text-sm text-slate-500">プレビューを取得できませんでした</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden text-center py-8">
+          <div class="text-red-400 mb-4">
+            <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <p class="text-lg font-medium">共有データが見つかりません</p>
+            <p class="text-sm text-slate-500 mt-1">URLパラメータまたは保存されたデータが無効です</p>
+          </div>
+          <a href="/" class="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+            メインページに戻る
+          </a>
+        </div>
+      </section>
+
+      <!-- Post Creation Form -->
+      <section id="post-form-section" class="bg-slate-800 rounded-xl p-6 border border-slate-700 hidden">
+        <h2 class="text-xl font-semibold text-purple-400 mb-4">この内容から投稿を作成</h2>
+        
+        <form id="post-form" class="space-y-4">
+          <!-- URL Field (Pre-filled, Read-only) -->
+          <div>
+            <label for="post-url" class="block text-sm font-medium text-slate-300 mb-2">URL *</label>
+            <input type="url" id="post-url" name="url" required readonly
+                   class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-400 cursor-not-allowed">
+          </div>
+
+          <!-- Original Content Field -->
+          <div>
+            <label for="original-content" class="block text-sm font-medium text-slate-300 mb-2">
+              元の投稿本文 (任意)
+            </label>
+            <textarea id="original-content" name="originalContent" rows="3"
+                      class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 focus:border-purple-400 focus:outline-none"
+                      placeholder="共有された内容や追加のコンテキストを入力"></textarea>
+            <button type="button" id="refine-btn" 
+                    class="mt-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <span id="refine-btn-text">AIに内容を整えてもらう</span>
+            </button>
+          </div>
+
+          <!-- Summary Field -->
+          <div>
+            <label for="summary" class="block text-sm font-medium text-slate-300 mb-2">共有する内容 *</label>
+            <textarea id="summary" name="summary" rows="4" required
+                      class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 focus:border-purple-400 focus:outline-none"
+                      placeholder="このURLについて共有したい内容を入力してください"></textarea>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="flex space-x-4">
+            <button type="submit" id="submit-btn"
+                    class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <span id="submit-btn-text">投稿を作成</span>
+            </button>
+            <button type="button" id="cancel-btn"
+                    class="px-6 py-3 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors">
+              キャンセル
+            </button>
+          </div>
+        </form>
+
+        <!-- Status Messages -->
+        <div id="status-messages" class="mt-4 hidden">
+          <!-- Success Message -->
+          <div id="success-message" class="hidden p-4 bg-green-800/30 border border-green-600 rounded-lg">
+            <div class="flex items-center">
+              <svg class="w-5 h-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span class="text-green-400 font-medium">投稿が正常に作成されました！</span>
+            </div>
+            <div class="mt-2">
+              <a href="/" class="text-green-300 hover:text-green-200 underline">投稿一覧を見る</a>
+            </div>
+          </div>
+
+          <!-- Error Message -->
+          <div id="error-message" class="hidden p-4 bg-red-800/30 border border-red-600 rounded-lg">
+            <div class="flex items-center">
+              <svg class="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"></path>
+              </svg>
+              <span class="text-red-400 font-medium">エラーが発生しました</span>
+            </div>
+            <p id="error-message-text" class="text-red-300 mt-1 text-sm"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    console.log('URL Share page loaded');
+    console.log('Current URL:', window.location.href);
+
+    // Global state
+    let sharedData = null;
+    let isSubmitting = false;
+
+    // DOM elements
+    const loadingState = document.getElementById('loading-state');
+    const sharedContent = document.getElementById('shared-content');
+    const errorState = document.getElementById('error-state');
+    const postFormSection = document.getElementById('post-form-section');
+    const statusMessages = document.getElementById('status-messages');
+    const successMessage = document.getElementById('success-message');
+    const errorMessage = document.getElementById('error-message');
+    const errorMessageText = document.getElementById('error-message-text');
+
+    // Initialize page
+    async function initializePage() {
+      try {
+        // Try to get shared data from URL parameters first
+        const params = new URLSearchParams(window.location.search);
+        const urlParam = params.get('url');
+        const titleParam = params.get('title');
+        const textParam = params.get('text');
+
+        if (urlParam || titleParam || textParam) {
+          sharedData = {
+            url: urlParam || '',
+            title: titleParam || '',
+            text: textParam || '',
+            source: 'url_params'
+          };
+          console.log('Found shared data in URL params:', sharedData);
+        } else {
+          // Try to get from localStorage
+          const pendingShare = localStorage.getItem('pendingShare');
+          if (pendingShare) {
+            sharedData = JSON.parse(pendingShare);
+            sharedData.source = 'localStorage';
+            localStorage.removeItem('pendingShare'); // Clean up
+            console.log('Found shared data in localStorage:', sharedData);
+          }
+        }
+
+        if (!sharedData || (!sharedData.url && !sharedData.title && !sharedData.text)) {
+          throw new Error('No valid shared data found');
+        }
+
+        await displaySharedContent();
+        await loadUrlPreview();
+        setupPostForm();
+        
+      } catch (error) {
+        console.error('Failed to initialize page:', error);
+        showErrorState();
+      }
+    }
+
+    // Display shared content
+    async function displaySharedContent() {
+      loadingState.classList.add('hidden');
+      sharedContent.classList.remove('hidden');
+      postFormSection.classList.remove('hidden');
+
+      // Display URL
+      if (sharedData.url) {
+        const urlElement = document.getElementById('shared-url');
+        urlElement.href = sharedData.url;
+        urlElement.textContent = sharedData.url;
+      }
+
+      // Display title if available
+      if (sharedData.title) {
+        const titleSection = document.getElementById('title-section');
+        const titleElement = document.getElementById('shared-title');
+        titleElement.textContent = sharedData.title;
+        titleSection.classList.remove('hidden');
+      }
+
+      // Display text if available
+      if (sharedData.text) {
+        const textSection = document.getElementById('text-section');
+        const textElement = document.getElementById('shared-text');
+        textElement.textContent = sharedData.text;
+        textSection.classList.remove('hidden');
+      }
+
+      // Pre-fill form
+      document.getElementById('post-url').value = sharedData.url || '';
+      document.getElementById('original-content').value = sharedData.text || sharedData.title || '';
+    }
+
+    // Load URL preview
+    async function loadUrlPreview() {
+      const previewLoading = document.getElementById('url-preview-loading');
+      const previewContent = document.getElementById('url-preview-content');
+      const previewError = document.getElementById('url-preview-error');
+
+      if (!sharedData.url) {
+        previewLoading.classList.add('hidden');
+        previewError.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/preview?url=${encodeURIComponent(sharedData.url)}`);
+        if (!response.ok) throw new Error('Preview fetch failed');
+        
+        const previewData = await response.json();
+        
+        previewLoading.classList.add('hidden');
+        previewContent.classList.remove('hidden');
+        
+        // Build preview HTML
+        let previewHTML = '<div class="p-4">';
+        
+        if (previewData.title) {
+          previewHTML += `<h4 class="font-semibold text-slate-200 mb-2 line-clamp-2">${escapeHtml(previewData.title)}</h4>`;
+        }
+        
+        if (previewData.description) {
+          previewHTML += `<p class="text-sm text-slate-400 mb-3 line-clamp-3">${escapeHtml(previewData.description)}</p>`;
+        }
+        
+        if (previewData.image) {
+          previewHTML += `<img src="${escapeHtml(previewData.image)}" alt="Preview image" class="w-full h-32 object-cover rounded mb-3" onerror="this.style.display='none'">`;
+        }
+        
+        if (previewData.siteName) {
+          previewHTML += `<span class="text-xs text-slate-500">${escapeHtml(previewData.siteName)}</span>`;
+        }
+        
+        previewHTML += '</div>';
+        previewContent.innerHTML = previewHTML;
+        
+      } catch (error) {
+        console.error('Failed to load URL preview:', error);
+        previewLoading.classList.add('hidden');
+        previewError.classList.remove('hidden');
+      }
+    }
+
+    // Setup post form
+    function setupPostForm() {
+      const form = document.getElementById('post-form');
+      const refineBtn = document.getElementById('refine-btn');
+      const cancelBtn = document.getElementById('cancel-btn');
+
+      form.addEventListener('submit', handleSubmitPost);
+      refineBtn.addEventListener('click', handleRefineContent);
+      cancelBtn.addEventListener('click', () => {
+        window.location.href = '/';
+      });
+    }
+
+    // Handle content refinement
+    async function handleRefineContent() {
+      const originalContent = document.getElementById('original-content').value.trim();
+      if (!originalContent) return;
+
+      const refineBtn = document.getElementById('refine-btn');
+      const refineBtnText = document.getElementById('refine-btn-text');
+      
+      refineBtn.disabled = true;
+      refineBtnText.textContent = '処理中...';
+
+      try {
+        const response = await fetch('/api/refine-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ originalContent })
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({message: 'AIによる推敲に失敗しました'}));
+          throw new Error(error.message);
+        }
+
+        const data = await response.json();
+        document.getElementById('summary').value = data.refinedText;
+        showSuccessToast('AIが内容を整えました');
+
+      } catch (error) {
+        console.error('Refine content error:', error);
+        showErrorToast(error.message);
+      } finally {
+        refineBtn.disabled = false;
+        refineBtnText.textContent = 'AIに内容を整えてもらう';
+      }
+    }
+
+    // Handle post submission
+    async function handleSubmitPost(event) {
+      event.preventDefault();
+      
+      if (isSubmitting) return;
+      isSubmitting = true;
+
+      const submitBtn = document.getElementById('submit-btn');
+      const submitBtnText = document.getElementById('submit-btn-text');
+      
+      submitBtn.disabled = true;
+      submitBtnText.textContent = '投稿中...';
+
+      hideStatusMessages();
+
+      try {
+        const formData = new FormData(event.target);
+        const postData = {
+          url: formData.get('url'),
+          summary: formData.get('summary'),
+          originalContent: formData.get('originalContent')
+        };
+
+        if (!postData.url || !postData.summary) {
+          throw new Error('URLと共有する内容は必須です');
+        }
+
+        // First, analyze labels
+        const labelsResponse = await fetch('/api/analyze-labels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: postData.summary })
+        });
+
+        if (!labelsResponse.ok) {
+          const error = await labelsResponse.json().catch(() => ({message: 'ラベル分析に失敗しました'}));
+          throw new Error(error.message);
+        }
+
+        const { labels } = await labelsResponse.json();
+
+        // Then create the post
+        const postResponse = await fetch('/api/create-post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: postData.url,
+            summary: postData.summary,
+            labels: labels
+          })
+        });
+
+        if (!postResponse.ok) {
+          const error = await postResponse.json().catch(() => ({message: '投稿の作成に失敗しました'}));
+          throw new Error(error.message);
+        }
+
+        const result = await postResponse.json();
+        console.log('Post created successfully:', result);
+
+        showSuccessMessage();
+        
+      } catch (error) {
+        console.error('Submit post error:', error);
+        showErrorMessage(error.message);
+      } finally {
+        isSubmitting = false;
+        submitBtn.disabled = false;
+        submitBtnText.textContent = '投稿を作成';
+      }
+    }
+
+    // Show error state
+    function showErrorState() {
+      loadingState.classList.add('hidden');
+      sharedContent.classList.add('hidden');
+      postFormSection.classList.add('hidden');
+      errorState.classList.remove('hidden');
+    }
+
+    // Status message functions
+    function showSuccessMessage() {
+      statusMessages.classList.remove('hidden');
+      successMessage.classList.remove('hidden');
+      errorMessage.classList.add('hidden');
+    }
+
+    function showErrorMessage(message) {
+      statusMessages.classList.remove('hidden');
+      errorMessage.classList.remove('hidden');
+      successMessage.classList.add('hidden');
+      errorMessageText.textContent = message;
+    }
+
+    function hideStatusMessages() {
+      statusMessages.classList.add('hidden');
+      successMessage.classList.add('hidden');
+      errorMessage.classList.add('hidden');
+    }
+
+    // Toast notifications
+    function showSuccessToast(message) {
+      showToast(message, 'success');
+    }
+
+    function showErrorToast(message) {
+      showToast(message, 'error');
+    }
+
+    function showToast(message, type = 'info') {
+      // Remove existing toast
+      const existingToast = document.querySelector('.toast-notification');
+      if (existingToast) {
+        existingToast.remove();
+      }
+      
+      const toast = document.createElement('div');
+      toast.className = `toast-notification fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
+      
+      switch (type) {
+        case 'success':
+          toast.className += ' bg-green-600 text-white';
+          break;
+        case 'error':
+          toast.className += ' bg-red-600 text-white';
+          break;
+        default:
+          toast.className += ' bg-blue-600 text-white';
+      }
+      
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      // Slide in
+      setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+      }, 100);
+      
+      // Auto remove after 3 seconds
+      setTimeout(() => {
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 300);
+      }, 3000);
+    }
+
+    // Utility functions
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize the page when DOM is loaded
+    document.addEventListener('DOMContentLoaded', initializePage);
+  </script>
+</body>
+</html>
