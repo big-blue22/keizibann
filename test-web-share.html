@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Share Target APIテスト</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .test-url {
+      display: inline-block;
+      padding: 10px;
+      margin: 5px 0;
+      background: #e3f2fd;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #1976d2;
+    }
+    .test-url:hover {
+      background: #bbdefb;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .error {
+      background: #ffebee;
+      color: #c62828;
+    }
+    code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Web Share Target APIテスト</h1>
+    
+    <div class="section">
+      <h2>1. Web Share APIでの共有テスト</h2>
+      <p>以下のボタンをクリックすると、Web Share APIを使ってURLを共有できます。</p>
+      <button onclick="shareUrl()">URLを共有</button>
+      <button onclick="shareWithText()">URL + テキストを共有</button>
+      <button onclick="shareWithTitle()">URL + タイトル + テキストを共有</button>
+      <div id="shareStatus"></div>
+    </div>
+    
+    <div class="section">
+      <h2>2. 直接リンクでのテスト</h2>
+      <p>以下のリンクをクリックすると、share-target.htmlに直接アクセスできます：</p>
+      <a href="/share-target.html?url=https://example.com" class="test-url">
+        URLのみ
+      </a>
+      <a href="/share-target.html?url=https://example.com&text=これはテストテキストです" class="test-url">
+        URL + テキスト
+      </a>
+      <a href="/share-target.html?url=https://example.com&title=テストタイトル&text=これはテストテキストです" class="test-url">
+        URL + タイトル + テキスト
+      </a>
+    </div>
+    
+    <div class="section">
+      <h2>3. 動作確認手順</h2>
+      <ol>
+        <li><strong>PWAをインストール</strong>: まず、AI技術共有ハブをPWAとしてインストールしてください。</li>
+        <li><strong>共有機能をテスト</strong>: 
+          <ul>
+            <li>モバイル: 他のアプリ（X、ブラウザなど）から「共有」ボタンを押して、AI技術共有ハブを選択</li>
+            <li>デスクトップ: 上記のWeb Share APIボタンを使用</li>
+          </ul>
+        </li>
+        <li><strong>結果を確認</strong>: AI技術共有ハブが開き、URLが自動的に入力されているか確認</li>
+      </ol>
+    </div>
+    
+    <div class="section">
+      <h2>4. manifest.jsonの設定内容</h2>
+      <pre><code>{
+  "share_target": {
+    "action": "/share-target.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}</code></pre>
+    </div>
+  </div>
+
+  <script>
+    async function shareUrl() {
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            url: 'https://github.com/anthropics/claude-3-artifacts'
+          });
+          showStatus('URLの共有に成功しました！', false);
+        } else {
+          showStatus('Web Share APIはこのブラウザでサポートされていません。', true);
+        }
+      } catch (err) {
+        showStatus('共有がキャンセルされました: ' + err.message, true);
+      }
+    }
+    
+    async function shareWithText() {
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            url: 'https://github.com/anthropics/claude-3-artifacts',
+            text: 'Claude 3の新しいArtifacts機能をチェックしてください！'
+          });
+          showStatus('URL + テキストの共有に成功しました！', false);
+        } else {
+          showStatus('Web Share APIはこのブラウザでサポートされていません。', true);
+        }
+      } catch (err) {
+        showStatus('共有がキャンセルされました: ' + err.message, true);
+      }
+    }
+    
+    async function shareWithTitle() {
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Claude 3 Artifacts',
+            url: 'https://github.com/anthropics/claude-3-artifacts',
+            text: 'Anthropic社の最新AI機能、Artifactsについて詳しく見てみましょう。'
+          });
+          showStatus('すべての情報の共有に成功しました！', false);
+        } else {
+          showStatus('Web Share APIはこのブラウザでサポートされていません。', true);
+        }
+      } catch (err) {
+        showStatus('共有がキャンセルされました: ' + err.message, true);
+      }
+    }
+    
+    function showStatus(message, isError) {
+      const statusDiv = document.getElementById('shareStatus');
+      statusDiv.className = 'status' + (isError ? ' error' : '');
+      statusDiv.textContent = message;
+    }
+  </script>
+</body>
+</html>

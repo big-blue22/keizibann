@@ -175,6 +175,45 @@ const PostForm = ({ onPostAdded }) => {
   const [originalContent, setOriginalContent] = useState('');
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null });
+  
+  // 共有データのチェックと自動入力
+  useEffect(() => {
+    // URLパラメータをチェック
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('shared') === 'true') {
+      // localStorageから共有データを取得
+      const pendingShareData = localStorage.getItem('pendingShare');
+      if (pendingShareData) {
+        try {
+          const shareData = JSON.parse(pendingShareData);
+          
+          // URLフィールドに自動入力
+          if (shareData.url) {
+            setUrl(shareData.url);
+          }
+          
+          // テキストがある場合は共有内容にも設定
+          if (shareData.text || shareData.title) {
+            const sharedContent = shareData.title ? 
+              `${shareData.title}${shareData.text ? '\n\n' + shareData.text : ''}` : 
+              shareData.text;
+            setSummary(sharedContent);
+          }
+          
+          // 使用済みのデータを削除
+          localStorage.removeItem('pendingShare');
+          
+          // URLパラメータを削除（クリーンなURLにする）
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // 成功メッセージを表示
+          setStatus({ loading: false, error: null, success: '共有されたURLを受け取りました！' });
+        } catch (err) {
+          console.error('Failed to parse share data:', err);
+        }
+      }
+    }
+  }, []);
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;

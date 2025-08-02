@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>共有を処理中...</title>
+  <link rel="stylesheet" href="/dist/output.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center">
+  <div class="text-center">
+    <h1 class="text-2xl font-semibold mb-4">共有を処理しています...</h1>
+    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto"></div>
+  </div>
+  
+  <script>
+    // URLパラメータから共有データを取得
+    const params = new URLSearchParams(window.location.search);
+    const sharedUrl = params.get('url');
+    const sharedTitle = params.get('title');
+    const sharedText = params.get('text');
+    
+    // 共有データを保存
+    if (sharedUrl || sharedTitle || sharedText) {
+      const shareData = {
+        url: sharedUrl || '',
+        title: sharedTitle || '',
+        text: sharedText || '',
+        timestamp: Date.now()
+      };
+      
+      // localStorageに保存
+      localStorage.setItem('pendingShare', JSON.stringify(shareData));
+    }
+    
+    // index.htmlへリダイレクト
+    window.location.href = '/?shared=true';
+  </script>
+</body>
+</html>
