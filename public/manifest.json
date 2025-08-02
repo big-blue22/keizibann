@@ -26,19 +26,12 @@
   "lang": "ja",
   "dir": "ltr",
   "share_target": {
-    "action": "/handle-share",
-    "method": "POST",
-    "enctype": "multipart/form-data",
+    "action": "/share-target.html",
+    "method": "GET",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url",
-      "files": [
-        {
-          "name": "shared_files",
-          "accept": ["image/*", "application/pdf"]
-        }
-      ]
+      "url": "url"
     }
   }
 }
