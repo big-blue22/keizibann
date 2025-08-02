@@ -187,16 +187,43 @@ const PostForm = ({ onPostAdded }) => {
         try {
           const shareData = JSON.parse(pendingShareData);
           
-          // URLフィールドに自動入力
+          // 共有データからURLを抽出
+          let extractedUrl = '';
+          
+          // まずurlパラメータをチェック
           if (shareData.url) {
-            setUrl(shareData.url);
+            extractedUrl = shareData.url;
+          } 
+          // urlパラメータがない場合、textからURL形式の文字列を探す
+          else if (shareData.text) {
+            // URL正規表現パターン
+            const urlPattern = /https?:\/\/[^\s]+/g;
+            const urlMatch = shareData.text.match(urlPattern);
+            if (urlMatch && urlMatch.length > 0) {
+              extractedUrl = urlMatch[0];
+            }
           }
           
-          // テキストがある場合は共有内容にも設定
-          if (shareData.text || shareData.title) {
-            const sharedContent = shareData.title ? 
-              `${shareData.title}${shareData.text ? '\n\n' + shareData.text : ''}` : 
-              shareData.text;
+          // URLフィールドに設定
+          if (extractedUrl) {
+            setUrl(extractedUrl);
+          }
+          
+          // 共有内容の設定（URLは除外）
+          let sharedContent = '';
+          if (shareData.title) {
+            sharedContent = shareData.title;
+          }
+          if (shareData.text) {
+            // URLを除いたテキストを追加
+            const textWithoutUrl = extractedUrl ? shareData.text.replace(extractedUrl, '').trim() : shareData.text;
+            if (textWithoutUrl) {
+              sharedContent = sharedContent ? `${sharedContent}\n\n${textWithoutUrl}` : textWithoutUrl;
+            }
+          }
+          
+          // 共有内容が空でない場合のみ設定
+          if (sharedContent.trim()) {
             setSummary(sharedContent);
           }
           
