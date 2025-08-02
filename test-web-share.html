@@ -87,14 +87,17 @@
     <div class="section">
       <h2>2. 直接リンクでのテスト</h2>
       <p>以下のリンクをクリックすると、share-target.htmlに直接アクセスできます：</p>
-      <a href="/share-target.html?url=https://example.com" class="test-url">
-        URLのみ
+      <a href="/share-target.html?url=https://github.com/anthropics/claude-3-artifacts" class="test-url">
+        URLパラメータのみ
       </a>
-      <a href="/share-target.html?url=https://example.com&text=これはテストテキストです" class="test-url">
-        URL + テキスト
+      <a href="/share-target.html?text=https://github.com/anthropics/claude-3-artifacts" class="test-url">
+        textパラメータにURL
       </a>
-      <a href="/share-target.html?url=https://example.com&title=テストタイトル&text=これはテストテキストです" class="test-url">
-        URL + タイトル + テキスト
+      <a href="/share-target.html?title=https://github.com/anthropics/claude-3-artifacts" class="test-url">
+        titleパラメータにURL
+      </a>
+      <a href="/share-target.html?text=Claude 3の新しい機能をチェック: https://github.com/anthropics/claude-3-artifacts 素晴らしいです！" class="test-url">
+        textパラメータにURL+テキスト
       </a>
     </div>
     

@@ -187,44 +187,46 @@ const PostForm = ({ onPostAdded }) => {
         try {
           const shareData = JSON.parse(pendingShareData);
           
-          // 共有データからURLを抽出
-          let extractedUrl = '';
+          console.log('=== 共有データ処理 ===');
+          console.log('受信したデータ:', shareData);
           
-          // まずurlパラメータをチェック
-          if (shareData.url) {
-            extractedUrl = shareData.url;
-          } 
-          // urlパラメータがない場合、textからURL形式の文字列を探す
+          // URLを見つける（複数のソースから）
+          let foundUrl = '';
+          
+          // 1. urlパラメータをチェック
+          if (shareData.url && shareData.url.startsWith('http')) {
+            foundUrl = shareData.url;
+            console.log('URL found in url param:', foundUrl);
+          }
+          // 2. textパラメータからURLを抽出
           else if (shareData.text) {
-            // URL正規表現パターン
-            const urlPattern = /https?:\/\/[^\s]+/g;
-            const urlMatch = shareData.text.match(urlPattern);
-            if (urlMatch && urlMatch.length > 0) {
-              extractedUrl = urlMatch[0];
+            const urlPattern = /https?:\/\/[^\s]+/;
+            const match = shareData.text.match(urlPattern);
+            if (match) {
+              foundUrl = match[0];
+              console.log('URL found in text param:', foundUrl);
+            }
+          }
+          // 3. titleパラメータからURLを抽出
+          else if (shareData.title) {
+            const urlPattern = /https?:\/\/[^\s]+/;
+            const match = shareData.title.match(urlPattern);
+            if (match) {
+              foundUrl = match[0];
+              console.log('URL found in title param:', foundUrl);
             }
           }
           
-          // URLフィールドに設定
-          if (extractedUrl) {
-            setUrl(extractedUrl);
-          }
-          
-          // 共有内容の設定（URLは除外）
-          let sharedContent = '';
-          if (shareData.title) {
-            sharedContent = shareData.title;
-          }
-          if (shareData.text) {
-            // URLを除いたテキストを追加
-            const textWithoutUrl = extractedUrl ? shareData.text.replace(extractedUrl, '').trim() : shareData.text;
-            if (textWithoutUrl) {
-              sharedContent = sharedContent ? `${sharedContent}\n\n${textWithoutUrl}` : textWithoutUrl;
-            }
-          }
-          
-          // 共有内容が空でない場合のみ設定
-          if (sharedContent.trim()) {
-            setSummary(sharedContent);
+          // URLが見つかった場合のみ処理
+          if (foundUrl) {
+            setUrl(foundUrl);
+            console.log('Setting URL field to:', foundUrl);
+            
+            // 成功メッセージを表示
+            setStatus({ loading: false, error: null, success: '共有されたURLを受け取りました！' });
+          } else {
+            console.log('No URL found in shared data');
+            setStatus({ loading: false, error: 'URLが見つかりませんでした', success: null });
           }
           
           // 使用済みのデータを削除
@@ -233,10 +235,9 @@ const PostForm = ({ onPostAdded }) => {
           // URLパラメータを削除（クリーンなURLにする）
           window.history.replaceState({}, document.title, window.location.pathname);
           
-          // 成功メッセージを表示
-          setStatus({ loading: false, error: null, success: '共有されたURLを受け取りました！' });
         } catch (err) {
           console.error('Failed to parse share data:', err);
+          setStatus({ loading: false, error: '共有データの処理に失敗しました', success: null });
         }
       }
     }
