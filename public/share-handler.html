@@ -75,15 +75,16 @@
         function createPost() {
             const { title, text, url } = getSharedContent();
             
-            // 投稿作成ページにデータを渡す（実装は既存のアプリケーションに合わせて調整が必要）
-            const postData = {
-                title: title,
-                content: text + (url ? '\n\n参照: ' + url : '')
+            const shareData = {
+                url: url || '',
+                title: title || '',
+                text: text || '',
+                timestamp: Date.now()
             };
             
-            // セッションストレージに保存してホームページに移動
-            sessionStorage.setItem('sharedPostData', JSON.stringify(postData));
-            window.location.href = '/';
+            // localStorageに保存してホームページに移動
+            localStorage.setItem('pendingShare', JSON.stringify(shareData));
+            window.location.href = '/?shared=true';
         }
         
         // ページ読み込み時にコンテンツを表示
