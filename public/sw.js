@@ -7,8 +7,7 @@ const urlsToCache = [
   '/dist/output.css',
   '/manifest.json',
   '/btoa-polyfill.js',
-  '/share-target.html',
-  '/url-share.html'
+  '/share-target.html'
 ];
 
 // UTF-8対応のBase64エンコーディング関数（btoa の代替）

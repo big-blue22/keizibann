@@ -58,12 +58,12 @@
       localStorage.setItem('pendingShare', JSON.stringify(shareData));
       
       // デバッグ用に画面にも表示
-      document.querySelector('h1').textContent = '共有データを受け取りました - URL共有ページに移動します';
+      document.querySelector('h1').textContent = '共有データを受け取りました';
       
-      // 少し待ってからURL共有ページにリダイレクト
+      // 少し待ってからリダイレクト
       setTimeout(() => {
-        console.log('Redirecting to url-share.html');
-        window.location.href = `/url-share.html?url=${encodeURIComponent(sharedUrl || '')}&title=${encodeURIComponent(sharedTitle || '')}&text=${encodeURIComponent(sharedText || '')}`;
+        console.log('Redirecting to index.html');
+        window.location.href = '/?shared=true';
       }, 1000);
     } else {
       console.log('No share data found');
