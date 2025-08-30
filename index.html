@@ -187,69 +187,32 @@ const PostForm = ({ onPostAdded }) => {
       }
     };
 
-    // ページ読み込み時にsessionStorageをチェック
-    const checkSharedData = () => {
-      const sharedData = sessionStorage.getItem('sharedPostData');
-      if (sharedData) {
-        try {
-          const data = JSON.parse(sharedData);
-          setUrl(data.url || '');
-          setOriginalContent(data.originalContent || '');
-          sessionStorage.removeItem('sharedPostData'); // 使用後は削除
-        } catch (error) {
-          console.error('Error parsing shared data:', error);
-        }
+    const params = new URLSearchParams(window.location.search);
+    const shareUrl = params.get('share_url');
+    const shareTitle = params.get('share_title');
+    const shareText = params.get('share_text');
+
+    if (shareUrl) {
+      // スマートURL検出ロジックをここでも適用
+      let detectedUrl = shareUrl;
+      let detectedContent = shareText || shareTitle || '';
+
+      if (!detectedUrl && isURL(shareText)) {
+        detectedUrl = shareText;
+        detectedContent = shareTitle || '';
       }
-    };
 
-    // ページ読み込み時にlocalStorageの pendingShare をチェック
-    const checkPendingShareData = () => {
-      const pendingShare = localStorage.getItem('pendingShare');
-      if (pendingShare) {
-        try {
-          const data = JSON.parse(pendingShare);
-          console.log('Processing pending share data:', data);
-          
-          // スマートURL検出ロジック
-          let detectedUrl = data.url || '';
-          let detectedContent = data.text || '';
-          
-          // textパラメータがURLの場合、URLフィールドに移動
-          if (!detectedUrl && isURL(data.text)) {
-            detectedUrl = data.text;
-            detectedContent = data.title || ''; // titleを内容として使用
-          }
-          
-          setUrl(detectedUrl);
-          setOriginalContent(detectedContent);
-          localStorage.removeItem('pendingShare'); // 使用後は削除
-          
-          console.log('URL field set to:', detectedUrl);
-          console.log('Content field set to:', detectedContent);
-        } catch (error) {
-          console.error('Error parsing pending share data:', error);
-        }
-      }
-    };
+      setUrl(detectedUrl);
+      setOriginalContent(detectedContent);
 
-    // 共有コンテンツ受信イベントのリスナー
-    const handleSharedContent = (event) => {
-      const { url: sharedUrl, originalContent: sharedContent } = event.detail;
-      setUrl(sharedUrl || '');
-      setOriginalContent(sharedContent || '');
-    };
+      // 共有コンテンツがある場合、投稿タブをアクティブにする
+      // Appコンポーネントに通知する必要がある
+      window.dispatchEvent(new CustomEvent('activateCreateTab'));
 
-    // 初回チェック
-    checkSharedData();
-    checkPendingShareData();
-    
-    // イベントリスナーを登録
-    window.addEventListener('sharedContentReceived', handleSharedContent);
-
-    // クリーンアップ
-    return () => {
-      window.removeEventListener('sharedContentReceived', handleSharedContent);
-    };
+      // URLからクエリパラメータを削除して、リロード時に再実行されないようにする
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
   }, []);
 
   const handleRefine = async () => {
@@ -645,14 +608,16 @@ const App = () => {
 
   // 共有コンテンツ受信時に投稿作成タブに切り替え
   useEffect(() => {
-    const handleSharedContent = () => {
+    const handleActivateCreateTab = () => {
       setActiveTab('create');
     };
     
-    window.addEventListener('sharedContentReceived', handleSharedContent);
+    window.addEventListener('sharedContentReceived', handleActivateCreateTab);
+    window.addEventListener('activateCreateTab', handleActivateCreateTab);
     
     return () => {
-      window.removeEventListener('sharedContentReceived', handleSharedContent);
+      window.removeEventListener('sharedContentReceived', handleActivateCreateTab);
+      window.removeEventListener('activateCreateTab', handleActivateCreateTab);
     };
   }, []);
 
