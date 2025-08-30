@@ -75,16 +75,12 @@
         function createPost() {
             const { title, text, url } = getSharedContent();
             
-            const shareData = {
-                url: url || '',
-                title: title || '',
-                text: text || '',
-                timestamp: Date.now()
-            };
-            
-            // localStorageに保存してホームページに移動
-            localStorage.setItem('pendingShare', JSON.stringify(shareData));
-            window.location.href = '/?shared=true';
+            const params = new URLSearchParams();
+            params.set('share_url', url || '');
+            params.set('share_title', title || '');
+            params.set('share_text', text || '');
+
+            window.location.href = `/?${params.toString()}`;
         }
         
         // ページ読み込み時にコンテンツを表示
