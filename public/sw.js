@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-tech-hub-v6'; // バージョンを更新してキャッシュをリフレッシュ
+const CACHE_NAME = 'ai-tech-hub-v2'; // バージョンを更新してキャッシュをリフレッシュ
 const OFFLINE_URL = '/';
 
 // キャッシュするリソース
@@ -7,7 +7,7 @@ const urlsToCache = [
   '/dist/output.css',
   '/manifest.json',
   '/btoa-polyfill.js',
-  '/share-handler.html?v=1'
+  '/share-handler.html'
 ];
 
 // UTF-8対応のBase64エンコーディング関数（btoa の代替）
