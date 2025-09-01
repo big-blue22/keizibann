@@ -192,21 +192,30 @@ const PostForm = ({ onPostAdded }) => {
     const shareTitle = params.get('share_title');
     const shareText = params.get('share_text');
 
-    if (shareUrl) {
-      // スマートURL検出ロジックをここでも適用
-      let detectedUrl = shareUrl;
-      let detectedContent = shareText || shareTitle || '';
+    if (shareUrl || shareTitle || shareText) {
+      let detectedUrl = shareUrl || '';
+      let detectedContent = '';
 
-      if (!detectedUrl && isURL(shareText)) {
+      // 優先順位1: share_url パラメータ
+      if (isURL(shareUrl)) {
+        detectedUrl = shareUrl;
+        detectedContent = shareText || shareTitle || '';
+      }
+      // 優先順位2: share_text パラメータがURLの場合
+      else if (isURL(shareText)) {
         detectedUrl = shareText;
         detectedContent = shareTitle || '';
+      }
+      // 優先順位3: 上記以外
+      else {
+        detectedContent = shareText || shareTitle || '';
       }
 
       setUrl(detectedUrl);
       setOriginalContent(detectedContent);
+      setSummary(detectedContent); // UX改善：サマリーにも同じ内容をセット
 
       // 共有コンテンツがある場合、投稿タブをアクティブにする
-      // Appコンポーネントに通知する必要がある
       window.dispatchEvent(new CustomEvent('activateCreateTab'));
 
       // URLからクエリパラメータを削除して、リロード時に再実行されないようにする
