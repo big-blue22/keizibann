@@ -208,28 +208,32 @@ const PostForm = ({ onPostAdded }) => {
       if (pendingShare) {
         try {
           const data = JSON.parse(pendingShare);
+          let url = data.url || '';
+          let text = data.text || '';
+          const title = data.title || '';
 
-          let detectedUrl = '';
-          let detectedContent = '';
+          // URLを検出するための正規表現
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
 
-          // 優先順位1: data.urlが有効なURLの場合
-          if (data.url && isURL(data.url)) {
-            detectedUrl = data.url;
-            detectedContent = data.text || data.title || '';
+          // 1. 明示的なURLがある場合、それを使い、テキストからそのURLを削除する
+          if (url) {
+            text = text.replace(url, '').trim();
           }
-          // 優先順位2: data.textが有効なURLの場合
-          else if (data.text && isURL(data.text)) {
-            detectedUrl = data.text;
-            detectedContent = data.title || '';
-          }
-          // 優先順位3: URLが見つからない場合
+          // 2. 明示的なURLがない場合、テキストからURLを検索する
           else {
-            detectedContent = data.text || data.title || '';
+            const foundUrls = text.match(urlRegex);
+            if (foundUrls && foundUrls.length > 0) {
+              url = foundUrls[0]; // 最初に見つかったURLを使用
+              text = text.replace(url, '').trim();
+            }
           }
 
-          setUrl(detectedUrl);
-          setOriginalContent(detectedContent);
-          setSummary(detectedContent); // UX改善のためサマリーにもセット
+          // URL抽出後にテキストが空になった場合は、タイトルを内容として使用する
+          const content = text || title;
+
+          setUrl(url);
+          setOriginalContent(content);
+          setSummary(''); // ユーザー入力を促すため、サマリーは常に空で開始
 
           localStorage.removeItem('pendingShare');
 
