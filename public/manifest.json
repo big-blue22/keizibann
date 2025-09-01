@@ -26,7 +26,7 @@
   "lang": "ja",
   "dir": "ltr",
   "share_target": {
-    "action": "/share-handler.html",
+    "action": "/share-handler.html?v=1",
     "method": "GET",
     "params": {
       "title": "title",
