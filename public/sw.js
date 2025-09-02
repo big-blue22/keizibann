@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-tech-hub-v3'; // バージョンを更新してキャッシュをリフレッシュ
+const CACHE_NAME = 'ai-tech-hub-v4'; // バージョンを更新してキャッシュをリフレッシュ
 const OFFLINE_URL = '/';
 
 // キャッシュするリソース
@@ -246,7 +246,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // その他のリソースはキャッシュファーストで処理
+  // ナビゲーションリクエスト（HTMLページへのアクセス）の場合
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // ネットワークから正常に取得できたら、キャッシュを更新してレスポンスを返す
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          // ネットワークエラーの場合はキャッシュからフォールバック
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // その他のリソース（CSS, JS, 画像など）はキャッシュファーストで処理
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -256,39 +276,16 @@ self.addEventListener('fetch', (event) => {
         }
 
         // キャッシュになければネットワークから取得
-        return fetch(event.request)
-          .then((response) => {
-            // レスポンスが有効でない場合はそのまま返す
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // レスポンスをクローンしてキャッシュに保存
+        return fetch(event.request).then((response) => {
+          // レスポンスが有効な場合のみキャッシュに保存
+          if (response && response.status === 200 && response.type === 'basic') {
             const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              })
-              .catch((cacheError) => {
-                console.log('Cache put error:', cacheError);
-              });
-
-            return response;
-          })
-          .catch((fetchError) => {
-            console.log('Fetch error:', fetchError);
-            // ネットワークエラーの場合、HTMLリクエストなら基本ページを返す
-            if (event.request.destination === 'document') {
-              return caches.match(OFFLINE_URL);
-            }
-            // その他のリクエストは通常のネットワークエラーを返す
-            throw fetchError;
-          });
-      })
-      .catch((error) => {
-        console.log('Cache match error:', error);
-        // キャッシュエラーの場合はネットワークから直接取得を試行
-        return fetch(event.request);
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        });
       })
   );
 });

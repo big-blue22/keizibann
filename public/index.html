@@ -358,10 +358,6 @@ const PostForm = ({ onPostAdded }) => {
 
 // -- 投稿一覧 (PostList & PostCard) --
 const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
-    console.log(`--- PostCard Render Start (ID: ${post.id}) ---`);
-    console.log('Received post object:', post);
-    console.log('Received post.previewData:', post.previewData);
-
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState([]);
     const [newCommentContent, setNewCommentContent] = useState('');
@@ -369,7 +365,6 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [currentPreviewData, setCurrentPreviewData] = useState(post.previewData);
 
     useEffect(() => {
-        console.log(`PostCard Effect (ID: ${post.id}). Syncing preview data.`);
         setCurrentPreviewData(post.previewData);
     }, [post.previewData]);
 
@@ -484,7 +479,6 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
 
     const isRecent = isRecentPost();
 
-    console.log(`PostCard (ID: ${post.id}) rendering with preview data:`, currentPreviewData);
     return React.createElement('article', { 
         className: isRecent 
             ? "bg-green-800/30 border-green-600 rounded-lg p-5 border relative transition-all duration-300 ease-in-out transform hover:scale-[1.01] hover:border-green-400"
