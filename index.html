@@ -342,8 +342,8 @@ const PostForm = ({ onPostAdded }) => {
     ),
     // 共有内容入力
     React.createElement('div', null,
-        React.createElement('label', { htmlFor: "summary" }, "共有する内容 *"),
-        React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), required: true, rows: 4, className: "w-full p-2 bg-slate-700 rounded" })
+        React.createElement('label', { htmlFor: "summary" }, "共有する内容"),
+        React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), rows: 4, className: "w-full p-2 bg-slate-700 rounded", placeholder: "URLの概要を自動取得する場合は空のまま" })
     ),
     // 投稿ボタン
     React.createElement('button', { type: "submit", disabled: status.loading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, status.loading ? React.createElement(LoadingSpinner, null) : '投稿する')
