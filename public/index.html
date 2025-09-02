@@ -11,34 +11,76 @@
   <script src="/btoa-polyfill.js"></script>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/dist/output.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.1/24/outline/academic-cap.svg" rel="stylesheet">
 <script>
-// 極力早期にbtoaをオーバーライド（ブラウザ拡張機能対策）
+// 超早期btoa緊急オーバーライド（拡張機能の読み込み前に実行）
 (function() {
-  if (typeof btoa !== 'undefined') {
-    const originalBtoa = btoa;
-    function safeBtoa(str) {
+  'use strict';
+
+  function createEmergencyBtoa(originalBtoa) {
+    return function(str) {
+      if (typeof str !== 'string') str = String(str);
       try {
         return originalBtoa(str);
       } catch (error) {
         if (error.name === 'InvalidCharacterError') {
           try {
-            return originalBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, 
-              (match, p1) => String.fromCharCode(parseInt('0x' + p1))));
+            // 緊急エンコーディング: UTF-8 → エスケープ → Latin1 → Base64
+            const encoded = encodeURIComponent(str);
+            const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) =>
+              String.fromCharCode(parseInt(hex, 16)));
+            return originalBtoa(latin1);
           } catch (e) {
-            return '';
+            // 最終手段: 安全な代替値を返す
+            return originalBtoa('UTF8_CONTENT');
           }
         }
         throw error;
       }
-    }
-    
-    // 複数のスコープでオーバーライドを試行
-    try { window.btoa = safeBtoa; } catch(e) {}
-    try { self.btoa = safeBtoa; } catch(e) {}
-    try { globalThis.btoa = safeBtoa; } catch(e) {}
-    try { btoa = safeBtoa; } catch(e) {}
+    };
   }
+
+  // 可能な限り早期に全コンテキストでオーバーライド
+  const contexts = [
+    typeof window !== 'undefined' ? window : null,
+    typeof self !== 'undefined' ? self : null,
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof global !== 'undefined' ? global : null
+  ].filter(ctx => ctx && ctx.btoa);
+
+  contexts.forEach(ctx => {
+    if (ctx && ctx.btoa) {
+      try {
+        const original = ctx.btoa;
+        ctx.btoa = createEmergencyBtoa(original);
+
+        // 複数回オーバーライドして確実性を高める
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 1);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 10);
+        setTimeout(() => { ctx.btoa = createEmergencyBtoa(original); }, 50);
+      } catch (e) {
+        // エラーが発生しても処理を続行
+      }
+    }
+  });
+
+  // グローバル変数として安全なbtoaを提供
+  window.safeBtoa = function(str) {
+    try {
+      return (window.btoa || self.btoa || globalThis.btoa)(str);
+    } catch (e) {
+      if (e.name === 'InvalidCharacterError') {
+        try {
+          const encoded = encodeURIComponent(str);
+          const latin1 = encoded.replace(/%([0-9A-F]{2})/g, (_, hex) =>
+            String.fromCharCode(parseInt(hex, 16)));
+          return btoa(latin1);
+        } catch (e2) {
+          return btoa('ENCODING_ERROR');
+        }
+      }
+      throw e;
+    }
+  };
 })();
 </script>
 <script type="importmap">
@@ -55,58 +97,13 @@
 <body class="bg-slate-900 text-slate-100">
   <div id="root"></div>
   <script type="module">
-// 包括的なUTF-8対応Base64エンコーディング設定（ブラウザ拡張機能エラー対策）
-(function() {
-  'use strict';
-  
-  // UTF-8対応の安全なBase64エンコーディング関数
-  function createSafeBtoa(originalBtoa) {
-    return function(str) {
-      try {
-        return originalBtoa(str);
-      } catch (error) {
-        if (error.name === 'InvalidCharacterError') {
-          // UTF-8文字列を安全にBase64エンコード
-          try {
-            return originalBtoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-              return String.fromCharCode(parseInt('0x' + p1));
-            }));
-          } catch (fallbackError) {
-            console.warn('Base64 encoding failed for:', str, fallbackError);
-            return '';
-          }
-        }
-        throw error;
-      }
-    };
-  }
-  
-  // メインウィンドウのbtoaをオーバーライド
-  if (typeof window !== 'undefined' && window.btoa) {
-    const originalWindowBtoa = window.btoa;
-    window.btoa = createSafeBtoa(originalWindowBtoa);
-  }
-  
-  // グローバルスコープのbtoaもオーバーライド（可能な場合）
-  if (typeof self !== 'undefined' && self.btoa && self !== window) {
-    const originalSelfBtoa = self.btoa;
-    self.btoa = createSafeBtoa(originalSelfBtoa);
-  }
-  
-  // globalThisでも試行（最新のJavaScript環境対応）
-  if (typeof globalThis !== 'undefined' && globalThis.btoa) {
-    const originalGlobalBtoa = globalThis.btoa;
-    globalThis.btoa = createSafeBtoa(originalGlobalBtoa);
-  }
-})();
-
 // index.html の <script type="module"> の中身をこれに差し替える
 
 import React, { useState, useCallback, useMemo, useEffect, StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 
 // -- 定数や共通のコンポーネント --
-const APP_TITLE = "AI技術共有ハブ";
+const APP_TITLE = "AI技術共有ハブ（テスト版）";
 
 const LoadingSpinner = ({ size = 'md' }) => {
   const sizeClasses = { sm: 'w-4 h-4 border-2', md: 'w-8 h-8 border-4', lg: 'w-12 h-12 border-[6px]' };
@@ -121,7 +118,7 @@ const UrlPreview = ({ data, onClear }) => {
     
     return React.createElement('div', { className: 'bg-slate-700/50 rounded-lg p-4 border border-slate-600' },
         data.title && React.createElement('h4', { className: 'font-semibold text-slate-200 mb-2 line-clamp-2' }, data.title),
-        data.description && React.createElement('p', { className: 'text-sm text-slate-400 mb-3' }, data.description),
+        data.description && React.createElement('p', { className: 'text-sm text-slate-400 mb-3 line-clamp-3' }, data.description),
         data.image && React.createElement('img', { 
             src: data.image, 
             alt: data.title || 'Preview image',
@@ -175,102 +172,99 @@ const PostForm = ({ onPostAdded }) => {
   const [originalContent, setOriginalContent] = useState('');
   const [summary, setSummary] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null });
-  
-  // 共有データのチェックと自動入力
+
+  // 共有コンテンツの自動入力を処理
   useEffect(() => {
-    console.log('useEffect triggered, checking for shared data');
-    
-    // URLパラメータをチェック
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('shared') === 'true') {
-      console.log('Shared parameter detected');
-      // localStorageから共有データを取得
-      const pendingShareData = localStorage.getItem('pendingShare');
-      if (pendingShareData) {
+    // URL判定関数
+    const isURL = (text) => {
+      if (!text) return false;
+      try {
+        new URL(text);
+        return true;
+      } catch {
+        // より柔軟なURL判定
+        return /^https?:\/\/\S+\.\S+/.test(text);
+      }
+    };
+
+    // ページ読み込み時にsessionStorageをチェック
+    const checkSharedData = () => {
+      const sharedData = sessionStorage.getItem('sharedPostData');
+      if (sharedData) {
         try {
-          const shareData = JSON.parse(pendingShareData);
-          
-          console.log('=== 共有データ処理 ===');
-          console.log('受信したデータ:', shareData);
-          
-          // URLを見つける（複数のソースから）
-          let foundUrl = '';
-          
-          // 1. urlパラメータをチェック
-          if (shareData.url && shareData.url.startsWith('http')) {
-            foundUrl = shareData.url;
-            console.log('URL found in url param:', foundUrl);
-          }
-          // 2. textパラメータからURLを抽出
-          else if (shareData.text) {
-            const urlPattern = /https?:\/\/[^\s]+/;
-            const match = shareData.text.match(urlPattern);
-            if (match) {
-              foundUrl = match[0];
-              console.log('URL found in text param:', foundUrl);
-            }
-          }
-          // 3. titleパラメータからURLを抽出
-          else if (shareData.title) {
-            const urlPattern = /https?:\/\/[^\s]+/;
-            const match = shareData.title.match(urlPattern);
-            if (match) {
-              foundUrl = match[0];
-              console.log('URL found in title param:', foundUrl);
-            }
-          }
-          
-          // URLが見つかった場合のみ処理
-          if (foundUrl) {
-            console.log('Before setUrl - current url state:', url);
-            setUrl(foundUrl);
-            console.log('After setUrl call - setting to:', foundUrl);
-            
-            // DOM要素も直接確認
-            setTimeout(() => {
-              const urlInput = document.getElementById('url');
-              if (urlInput) {
-                console.log('DOM input value after setState:', urlInput.value);
-                // 強制的にDOM要素の値も設定
-                urlInput.value = foundUrl;
-                console.log('Force set DOM value to:', foundUrl);
-              }
-            }, 100);
-            
-            // 成功メッセージを表示
-            setStatus({ loading: false, error: null, success: `共有されたURL「${foundUrl}」を受け取りました！` });
-          } else {
-            console.log('No URL found in shared data');
-            setStatus({ loading: false, error: 'URLが見つかりませんでした', success: null });
-          }
-          
-          // 使用済みのデータを削除
-          localStorage.removeItem('pendingShare');
-          
-          // URLパラメータを削除（クリーンなURLにする）
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
-        } catch (err) {
-          console.error('Failed to parse share data:', err);
-          setStatus({ loading: false, error: '共有データの処理に失敗しました', success: null });
+          const data = JSON.parse(sharedData);
+          setUrl(data.url || '');
+          setOriginalContent(data.originalContent || '');
+          sessionStorage.removeItem('sharedPostData'); // 使用後は削除
+        } catch (error) {
+          console.error('Error parsing shared data:', error);
         }
       }
-    }
-  }, []);
-  
-  // URL state の変更を監視
-  useEffect(() => {
-    console.log('URL state changed to:', url);
-    if (url) {
-      setTimeout(() => {
-        const urlInput = document.getElementById('url');
-        if (urlInput && urlInput.value !== url) {
-          console.log('Force updating DOM input value from', urlInput.value, 'to', url);
-          urlInput.value = url;
+    };
+
+    // ページ読み込み時にlocalStorageの pendingShare をチェック
+    const checkPendingShareData = () => {
+      const pendingShare = localStorage.getItem('pendingShare');
+      if (pendingShare) {
+        try {
+          const data = JSON.parse(pendingShare);
+          let url = data.url || '';
+          let text = data.text || '';
+          const title = data.title || '';
+
+          // URLを検出するための正規表現
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+          // 1. 明示的なURLがある場合、それを使い、テキストからそのURLを削除する
+          if (url) {
+            text = text.replace(url, '').trim();
+          }
+          // 2. 明示的なURLがない場合、テキストからURLを検索する
+          else {
+            const foundUrls = text.match(urlRegex);
+            if (foundUrls && foundUrls.length > 0) {
+              url = foundUrls[0]; // 最初に見つかったURLを使用
+              text = text.replace(url, '').trim();
+            }
+          }
+
+          // URL抽出後にテキストが空になった場合は、タイトルを内容として使用する
+          const content = text || title;
+
+          setUrl(url);
+          setOriginalContent(content);
+          setSummary(''); // ユーザー入力を促すため、サマリーは常に空で開始
+
+          localStorage.removeItem('pendingShare');
+
+          // 共有コンテンツがある場合、投稿タブをアクティブにする
+          window.dispatchEvent(new CustomEvent('activateCreateTab'));
+
+        } catch (error) {
+          console.error('Error parsing pending share data:', error);
         }
-      }, 50);
-    }
-  }, [url]);
+      }
+    };
+
+    // 共有コンテンツ受信イベントのリスナー
+    const handleSharedContent = (event) => {
+      const { url: sharedUrl, originalContent: sharedContent } = event.detail;
+      setUrl(sharedUrl || '');
+      setOriginalContent(sharedContent || '');
+    };
+
+    // 初回チェック
+    checkSharedData();
+    checkPendingShareData();
+
+    // イベントリスナーを登録
+    window.addEventListener('sharedContentReceived', handleSharedContent);
+
+    // クリーンアップ
+    return () => {
+      window.removeEventListener('sharedContentReceived', handleSharedContent);
+    };
+  }, []);
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
@@ -292,8 +286,8 @@ const PostForm = ({ onPostAdded }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!url.trim() || !summary.trim()) {
-      setStatus({ loading: false, error: 'URLと共有する内容は必須です。', success: null });
+    if (!url.trim()) {
+      setStatus({ loading: false, error: 'URLは必須です。', success: null });
       return;
     }
     setStatus({ loading: true, error: null, success: null });
@@ -348,8 +342,8 @@ const PostForm = ({ onPostAdded }) => {
     ),
     // 共有内容入力
     React.createElement('div', null,
-        React.createElement('label', { htmlFor: "summary" }, "共有する内容 *"),
-        React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), required: true, rows: 4, className: "w-full p-2 bg-slate-700 rounded" })
+        React.createElement('label', { htmlFor: "summary" }, "共有する内容"),
+        React.createElement('textarea', { id: "summary", value: summary, onChange: e => setSummary(e.target.value), rows: 4, className: "w-full p-2 bg-slate-700 rounded", placeholder: "URLの概要を自動取得する場合は空のまま" })
     ),
     // 投稿ボタン
     React.createElement('button', { type: "submit", disabled: status.loading, className: "w-full px-6 py-3 bg-green-600 text-white rounded disabled:opacity-50" }, status.loading ? React.createElement(LoadingSpinner, null) : '投稿する')
@@ -641,13 +635,6 @@ const App = () => {
     const token = localStorage.getItem('admin-token');
     if (token) setIsAdmin(true);
     
-    // 共有コンテンツが検出された場合、新規投稿タブに切り替える
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('shared') === 'true') {
-      console.log('Shared content detected, switching to create tab');
-      setActiveTab('create');
-    }
-    
     const fetchPosts = async () => {
       try {
         console.log('📡 Fetching posts from API...');
@@ -668,6 +655,21 @@ const App = () => {
       }
     };
     fetchPosts();
+  }, []);
+
+  // 共有コンテンツ受信時に投稿作成タブに切り替え
+  useEffect(() => {
+    const handleActivateCreateTab = () => {
+      setActiveTab('create');
+    };
+
+    window.addEventListener('sharedContentReceived', handleActivateCreateTab);
+    window.addEventListener('activateCreateTab', handleActivateCreateTab);
+
+    return () => {
+      window.removeEventListener('sharedContentReceived', handleActivateCreateTab);
+      window.removeEventListener('activateCreateTab', handleActivateCreateTab);
+    };
   }, []);
 
   // ★★★ 新機能：絞り込み後の投稿リストを計算 ★★★
@@ -842,6 +844,185 @@ if ('serviceWorker' in navigator) {
         console.log('Service Worker registration failed:', error);
       });
   });
+}
+
+// Service Worker からの共有データを受信するリスナー
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SHARED_CONTENT') {
+      const sharedData = event.data.data;
+
+      console.log('共有コンテンツを受信:', sharedData);
+
+      // 共有データの内容をコンソールに表示
+      if (sharedData.title) console.log('タイトル:', sharedData.title);
+      if (sharedData.text) console.log('テキスト:', sharedData.text);
+      if (sharedData.url) console.log('URL:', sharedData.url);
+      if (sharedData.files && sharedData.files.length > 0) {
+        console.log('ファイル:');
+        sharedData.files.forEach((file, index) => {
+          console.log(`  ${index + 1}. ${file.name} (${file.type}, ${file.size} bytes)`);
+        });
+      }
+
+      // トースト通知を表示
+      showToast('共有コンテンツを受け取りました！', 'success');
+
+      // 共有データを投稿フォームに自動入力するために保存
+      handleSharedContentForPostForm(sharedData);
+    }
+  });
+}
+
+// 共有コンテンツを投稿フォームで使用するための処理
+function handleSharedContentForPostForm(sharedData) {
+  // URL判定関数
+  const isURL = (text) => {
+    if (!text) return false;
+    try {
+      new URL(text);
+      return true;
+    } catch {
+      // より柔軟なURL判定
+      return /^https?:\/\/\S+\.\S+/.test(text);
+    }
+  };
+
+  // スマートURL検出ロジック
+  let detectedUrl = sharedData.url || '';
+  let detectedContent = sharedData.text || '';
+
+  // textパラメータがURLの場合、URLフィールドに移動
+  if (!detectedUrl && isURL(sharedData.text)) {
+    detectedUrl = sharedData.text;
+    detectedContent = sharedData.title || ''; // titleを内容として使用
+  }
+
+  // 共有データをsessionStorageに保存
+  sessionStorage.setItem('sharedPostData', JSON.stringify({
+    url: detectedUrl,
+    originalContent: detectedContent,
+    title: sharedData.title || ''
+  }));
+
+  // カスタムイベントを発火して React アプリに通知
+  window.dispatchEvent(new CustomEvent('sharedContentReceived', {
+    detail: {
+      url: detectedUrl,
+      originalContent: detectedContent,
+      title: sharedData.title || ''
+    }
+  }));
+}
+
+// トースト通知を表示する関数
+function showToast(message, type = 'info') {
+  // 既存のトーストを削除
+  const existingToast = document.querySelector('.toast-notification');
+  if (existingToast) {
+    existingToast.remove();
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast-notification fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
+
+  // タイプに応じてスタイルを設定
+  switch (type) {
+    case 'success':
+      toast.className += ' bg-green-600 text-white';
+      break;
+    case 'error':
+      toast.className += ' bg-red-600 text-white';
+      break;
+    case 'warning':
+      toast.className += ' bg-yellow-600 text-white';
+      break;
+    default:
+      toast.className += ' bg-blue-600 text-white';
+  }
+
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // アニメーション：スライドイン
+  setTimeout(() => {
+    toast.style.transform = 'translateX(0)';
+  }, 100);
+
+  // 3秒後に自動削除
+  setTimeout(() => {
+    toast.style.transform = 'translateX(full)';
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// 共有データを画面に表示する関数
+function displaySharedContent(sharedData) {
+  // 共有データ表示用のコンテナがあるかチェック
+  let container = document.getElementById('shared-content-display');
+  if (!container) {
+    // コンテナが存在しない場合は作成
+    container = document.createElement('div');
+    container.id = 'shared-content-display';
+    container.className = 'fixed top-16 left-4 right-4 bg-slate-800 border border-purple-500 rounded-lg p-4 shadow-lg z-40 max-w-md mx-auto';
+
+    // 閉じるボタンを追加
+    const closeButton = document.createElement('button');
+    closeButton.className = 'absolute top-2 right-2 text-slate-400 hover:text-white text-xl';
+    closeButton.innerHTML = '×';
+    closeButton.onclick = () => container.remove();
+    container.appendChild(closeButton);
+
+    document.body.appendChild(container);
+  }
+
+  // 内容を作成
+  const content = document.createElement('div');
+  content.className = 'mt-6';
+
+  let html = '<h3 class="text-lg font-semibold text-purple-400 mb-3">共有されたコンテンツ</h3>';
+
+  if (sharedData.title) {
+    html += `<div class="mb-2"><strong class="text-slate-300">タイトル:</strong> <span class="text-slate-200">${escapeHtml(sharedData.title)}</span></div>`;
+  }
+
+  if (sharedData.text) {
+    html += `<div class="mb-2"><strong class="text-slate-300">テキスト:</strong> <span class="text-slate-200">${escapeHtml(sharedData.text)}</span></div>`;
+  }
+
+  if (sharedData.url) {
+    html += `<div class="mb-2"><strong class="text-slate-300">URL:</strong> <a href="${escapeHtml(sharedData.url)}" target="_blank" class="text-purple-400 hover:text-purple-300 break-all">${escapeHtml(sharedData.url)}</a></div>`;
+  }
+
+  if (sharedData.files && sharedData.files.length > 0) {
+    html += '<div class="mb-2"><strong class="text-slate-300">ファイル:</strong>';
+    html += '<ul class="list-disc list-inside text-slate-200 ml-4">';
+    sharedData.files.forEach(file => {
+      html += `<li>${escapeHtml(file.name)} (${escapeHtml(file.type)}, ${file.size} bytes)</li>`;
+    });
+    html += '</ul></div>';
+  }
+
+  content.innerHTML = html;
+  container.appendChild(content);
+
+  // 5秒後に自動削除
+  setTimeout(() => {
+    if (container.parentNode) {
+      container.remove();
+    }
+  }, 5000);
+}
+
+// HTMLエスケープ関数
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
   </script>
 </body>
