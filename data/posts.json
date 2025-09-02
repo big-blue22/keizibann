@@ -20,7 +20,14 @@
       "2025-06-30": 1,
       "2025-06-29": 1
     },
-    "recentViewCount": 4
+    "recentViewCount": 4,
+    "previewData": {
+      "title": "Genspark (ジェンスパーク) : 日本公式 (@genspark_japan) on X",
+      "description": "🎬 Gensparkに新しい動画モデルが5つも追加されたよ！\nなんと今、Gensparkでは【16種類】もの動画モデルから好きに選べるんだ✨\nしかも無料ユーザーでも毎日【200クレジット】もらえる！\n今日からキミも、Gensparkで自分だけの傑作動画を作ってみない？\nスタートはこちら👉 https://t.co/ldhwXzK6q8",
+      "image": "https://pbs.twimg.com/amplify_video_thumb/1938164672735416320/img/L5t0y32nnm7OMu09.jpg:large",
+      "siteName": "X (formerly Twitter)",
+      "url": "https://x.com/genspark_japan/status/1938175412863164522"
+    }
   },
   {
     "id": "post_1750929070515",
@@ -43,6 +50,13 @@
       "2025-06-30": 2,
       "2025-06-29": 1
     },
-    "recentViewCount": 6
+    "recentViewCount": 6,
+    "previewData": {
+      "title": "まつにぃ (@yugen_matuni) on X",
+      "description": "Gemini CLI見てると、もう世の中で流行ったものは1ヶ月以内に爆速で再構築され、しかもOSSレベルで公開される脅威のスピード感な世界になってますね。\n\nイカれた世界になってきて、これがまだ2025年の真ん中という恐怖。\n\nあと半年でどこまで伸びるのか...",
+      "image": "https://pbs.twimg.com/profile_images/1785991886655852544/Q5mmBVtu_200x200.jpg",
+      "siteName": "X (formerly Twitter)",
+      "url": "https://x.com/yugen_matuni/status/1937955160262905938"
+    }
   }
 ]
