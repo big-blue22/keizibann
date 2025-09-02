@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-tech-hub-v2'; // バージョンを更新してキャッシュをリフレッシュ
+const CACHE_NAME = 'ai-tech-hub-v3'; // バージョンを更新してキャッシュをリフレッシュ
 const OFFLINE_URL = '/';
 
 // キャッシュするリソース
