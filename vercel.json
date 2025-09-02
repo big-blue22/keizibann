@@ -22,9 +22,6 @@
     "api/analyze-labels.mjs": {
       "memory": 256
     },
-    "api/preview.mjs": {
-      "memory": 128
-    },
     "api/admin-login.mjs": {
       "memory": 128
     },
