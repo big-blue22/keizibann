@@ -286,8 +286,8 @@ const PostForm = ({ onPostAdded }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!url.trim() || !summary.trim()) {
-      setStatus({ loading: false, error: 'URLと共有する内容は必須です。', success: null });
+    if (!url.trim()) {
+      setStatus({ loading: false, error: 'URLは必須です。', success: null });
       return;
     }
     setStatus({ loading: true, error: null, success: null });

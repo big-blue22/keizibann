@@ -1,6 +1,7 @@
 // /api/create-post.mjs
 import { kv } from '@vercel/kv';
 import { isKvAvailable } from './utils/kv-utils.mjs';
+import { fetchPreviewData } from './utils/preview-utils.mjs';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -185,9 +186,23 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { url, summary, originalContent } = request.body;
-    if (!url || !summary) {
-      return response.status(400).json({ message: '必須項目が不足しています。' });
+    let { url, summary, originalContent } = request.body;
+
+    if (!url) {
+      return response.status(400).json({ message: 'URLは必須です。' });
+    }
+
+    // 投稿本文（summary）が空の場合、URLプレビューから取得を試みる
+    if (!summary) {
+      try {
+        const previewData = await fetchPreviewData(url);
+        if (!previewData || !previewData.description) {
+          return response.status(400).json({ message: '投稿内容が空です。URLから概要を自動取得できませんでした。' });
+        }
+        summary = previewData.description;
+      } catch (error) {
+        return response.status(400).json({ message: `URLプレビューの取得に失敗しました: ${error.message}` });
+      }
     }
 
     // ラベルを自動生成（AIと既存ラベルを活用）

@@ -1,46 +1,5 @@
 import { kv } from '@vercel/kv';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import { lookup } from 'dns/promises';
-import ipaddr from 'ipaddr.js';
-
-// ユーザーエージェントを設定して、ボットとして認識されにくくします
-const AXIOS_OPTIONS = {
-  headers: {
-    "User-Agent": "MyCustomPreviewBot/1.0 (https://github.com/big-blue22/keizibann)",
-  },
-  timeout: 5000, // 5秒でタイムアウト
-};
-
-// SSRF攻撃を防ぐためのURL検証関数
-async function isSafeUrl(url) {
-  try {
-    const { protocol, hostname } = new URL(url);
-
-    // 1. プロトコルがhttpまたはhttpsであることを確認
-    if (protocol !== 'http:' && protocol !== 'https:') {
-      console.warn(`[SSRF] 不正なプロトコル: ${protocol}`);
-      return false;
-    }
-
-    // 2. ホスト名をIPアドレスに解決
-    const { address } = await lookup(hostname);
-
-    // 3. IPアドレスがグローバルユニキャストであることを確認
-    const ip = ipaddr.parse(address);
-    const range = ip.range();
-
-    if (range !== 'unicast') {
-      console.warn(`[SSRF] プライベートIP範囲へのアクセス試行: ${hostname} (${address})`);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error(`[SSRF] URL検証中にエラーが発生: ${error.message}`);
-    return false;
-  }
-}
+import { fetchPreviewData } from './utils/preview-utils.mjs';
 
 // Mock preview data for example.com URLs (used in development/fallback scenarios)
 function getMockPreviewData(url) {
@@ -114,41 +73,8 @@ export default async function handler(request, response) {
     return response.status(200).json(mockPreviewData);
   }
 
-  // SSRF対策：URLの安全性を検証
-  if (!(await isSafeUrl(url))) {
-    console.log(`[SSRF] 安全でないURLのためリクエストをブロック: ${url}`);
-    return response.status(400).json({ error: '無効または安全でないURLが指定されました。' });
-  }
-
   try {
-    // 1. 指定されたURLからHTMLを取得
-    console.log('HTML取得開始:', url);
-    const { data: html } = await axios.get(url, AXIOS_OPTIONS);
-    console.log('HTML取得成功:', html.length, '文字');
-
-    // 2. CheerioでHTMLを解析
-    const $ = cheerio.load(html);
-
-    // 3. OGPタグと他のフォールバック用タグから情報を抽出
-    const getMetatag = (name) => $(`meta[property='${name}']`).attr('content') || $(`meta[name='${name}']`).attr('content');
-
-    const description = (getMetatag('twitter:description') || getMetatag('og:description') || '説明なし').substring(0, 200);
-
-    const previewData = {
-      title: getMetatag('og:title') || $('title').text() || 'タイトルなし',
-      description: description,
-      image: getMetatag('og:image'),
-      siteName: getMetatag('og:site_name') || new URL(url).hostname,
-      url: url // 元のURLも返す
-    };
-
-    // 画像URLが相対パスの場合、絶対パスに変換
-    if (previewData.image && previewData.image.startsWith('/')) {
-        const siteUrl = new URL(url);
-        previewData.image = `${siteUrl.protocol}//${siteUrl.hostname}${previewData.image}`;
-    }
-
-    console.log('プレビューデータ生成完了:', previewData);
+    const previewData = await fetchPreviewData(url);
 
     // --- キャッシュに保存（KV認証情報がある場合のみ） ---
     if (useCache) {
@@ -166,13 +92,6 @@ export default async function handler(request, response) {
 
   } catch (error) {
     console.error(`プレビューの取得に失敗しました: ${url}`, error.message);
-    // エラーの種類に応じて、より具体的なメッセージを返すことも可能です
-    let errorMessage = 'プレビューを生成できませんでした。';
-    if (error.code === 'ECONNABORTED') {
-        errorMessage = 'ページの読み込みがタイムアウトしました。';
-    } else if (error.response) {
-        errorMessage = `サイトからエラーが返されました (ステータス: ${error.response.status})。`;
-    }
-    return response.status(500).json({ error: errorMessage });
+    return response.status(500).json({ error: error.message });
   }
 }
