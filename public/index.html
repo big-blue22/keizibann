@@ -364,6 +364,10 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
     const [currentPreviewData, setCurrentPreviewData] = useState(post.previewData);
 
+    useEffect(() => {
+        setCurrentPreviewData(post.previewData);
+    }, [post.previewData]);
+
     // 閲覧数をインクリメント（URLクリック時のみ）
     const incrementViewCount = async () => {
         try {
