@@ -1,5 +1,8 @@
+import { kv } from '@vercel/kv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { lookup } from 'dns/promises';
+import ipaddr from 'ipaddr.js';
 
 // ユーザーエージェントを設定して、ボットとして認識されにくくします
 const AXIOS_OPTIONS = {
@@ -8,6 +11,36 @@ const AXIOS_OPTIONS = {
   },
   timeout: 5000, // 5秒でタイムアウト
 };
+
+// SSRF攻撃を防ぐためのURL検証関数
+async function isSafeUrl(url) {
+  try {
+    const { protocol, hostname } = new URL(url);
+
+    // 1. プロトコルがhttpまたはhttpsであることを確認
+    if (protocol !== 'http:' && protocol !== 'https:') {
+      console.warn(`[SSRF] 不正なプロトコル: ${protocol}`);
+      return false;
+    }
+
+    // 2. ホスト名をIPアドレスに解決
+    const { address } = await lookup(hostname);
+
+    // 3. IPアドレスがグローバルユニキャストであることを確認
+    const ip = ipaddr.parse(address);
+    const range = ip.range();
+
+    if (range !== 'unicast') {
+      console.warn(`[SSRF] プライベートIP範囲へのアクセス試行: ${hostname} (${address})`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[SSRF] URL検証中にエラーが発生: ${error.message}`);
+    return false;
+  }
+}
 
 // Mock preview data for example.com URLs (used in development/fallback scenarios)
 function getMockPreviewData(url) {
@@ -57,11 +90,34 @@ export default async function handler(request, response) {
     return response.status(400).json({ error: 'URLが指定されていません' });
   }
 
+  // --- キャッシュロジック（KV認証情報がある場合のみ） ---
+  const useCache = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+  const cacheKey = `preview:${url}`;
+
+  if (useCache) {
+    try {
+      const cachedData = await kv.get(cacheKey);
+      if (cachedData) {
+        console.log('キャッシュからプレビューデータを返します:', url);
+        return response.status(200).json(cachedData);
+      }
+    } catch (error) {
+      console.error('Vercel KVからのキャッシュ取得に失敗:', error);
+      // キャッシュエラーは処理を続行
+    }
+  }
+
   // Check if this is a mock URL (example.com)
   if (url.includes('example.com')) {
     console.log('モックURLを検出、モックデータを返します:', url);
     const mockPreviewData = getMockPreviewData(url);
     return response.status(200).json(mockPreviewData);
+  }
+
+  // SSRF対策：URLの安全性を検証
+  if (!(await isSafeUrl(url))) {
+    console.log(`[SSRF] 安全でないURLのためリクエストをブロック: ${url}`);
+    return response.status(400).json({ error: '無効または安全でないURLが指定されました。' });
   }
 
   try {
@@ -76,9 +132,11 @@ export default async function handler(request, response) {
     // 3. OGPタグと他のフォールバック用タグから情報を抽出
     const getMetatag = (name) => $(`meta[property='${name}']`).attr('content') || $(`meta[name='${name}']`).attr('content');
 
+    const description = (getMetatag('twitter:description') || getMetatag('og:description') || '説明なし').substring(0, 200);
+
     const previewData = {
       title: getMetatag('og:title') || $('title').text() || 'タイトルなし',
-      description: getMetatag('og:description') || '説明なし',
+      description: description,
       image: getMetatag('og:image'),
       siteName: getMetatag('og:site_name') || new URL(url).hostname,
       url: url // 元のURLも返す
@@ -91,6 +149,17 @@ export default async function handler(request, response) {
     }
 
     console.log('プレビューデータ生成完了:', previewData);
+
+    // --- キャッシュに保存（KV認証情報がある場合のみ） ---
+    if (useCache) {
+      try {
+        // キャッシュの有効期限を1時間（3600秒）に設定
+        await kv.set(cacheKey, previewData, { ex: 3600 });
+        console.log('プレビューデータをキャッシュに保存しました:', url);
+      } catch (error) {
+        console.error('Vercel KVへのキャッシュ保存に失敗:', error);
+      }
+    }
 
     // 4. JSON形式でプレビューデータを返す
     return response.status(200).json(previewData);

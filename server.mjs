@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import getPostsHandler from './api/get-posts.mjs';
+import previewHandler from './api/preview.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API ルート - 実際のAPIハンドラーを使用
 app.get('/api/get-posts', getPostsHandler);
+app.get('/api/preview', previewHandler);
 
 // その他のAPIルートはダミーレスポンス
 app.post('/api/increment-view-count', (req, res) => {
