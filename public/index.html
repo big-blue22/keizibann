@@ -362,28 +362,7 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [comments, setComments] = useState([]);
     const [newCommentContent, setNewCommentContent] = useState('');
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
-    const [previewData, setPreviewData] = useState(null);
-    const [previewLoading, setPreviewLoading] = useState(false);
-
-    // プレビューを自動的に取得
-    useEffect(() => {
-        const fetchPreview = async () => {
-            if (!post.url) return;
-            setPreviewLoading(true);
-            try {
-                const res = await fetch(`/api/preview?url=${encodeURIComponent(post.url)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setPreviewData(data);
-                }
-            } catch (err) {
-                console.error('Preview fetch error:', err);
-            } finally {
-                setPreviewLoading(false);
-            }
-        };
-        fetchPreview();
-    }, [post.url]);
+    const [currentPreviewData, setCurrentPreviewData] = useState(post.previewData);
 
     // 閲覧数をインクリメント（URLクリック時のみ）
     const incrementViewCount = async () => {
@@ -521,15 +500,11 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         
         // プレビュー表示エリア（常時表示）
-        React.createElement('div', { className: "my-3" },
-            previewLoading && React.createElement('div', { className: 'flex items-center justify-center p-3 bg-slate-700/20 rounded border-l-4 border-purple-500 pl-4' },
-                React.createElement(LoadingSpinner, { size: 'sm' }),
-                React.createElement('span', { className: 'ml-2 text-sm text-slate-400' }, 'プレビュー読み込み中...')
-            ),
-            !previewLoading && previewData && React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
-                React.createElement(UrlPreview, { 
-                    data: previewData, 
-                    onClear: () => setPreviewData(null)
+        currentPreviewData && React.createElement('div', { className: "my-3" },
+            React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
+                React.createElement(UrlPreview, {
+                    data: currentPreviewData,
+                    onClear: () => setCurrentPreviewData(null)
                 })
             )
         ),
