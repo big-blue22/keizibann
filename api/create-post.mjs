@@ -1,7 +1,6 @@
 // /api/create-post.mjs
 import { kv } from '@vercel/kv';
-import { isKvAvailable } from './utils/kv-utils.mjs';
-import { fetchPreviewData } from './utils/preview-utils.mjs';
+import { isKvAvailable, fetchPreviewData } from './utils/kv-utils.mjs';
 import fs from 'fs/promises';
 import path from 'path';
 

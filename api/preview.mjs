@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { fetchPreviewData } from './utils/preview-utils.mjs';
+import { fetchPreviewData } from './utils/kv-utils.mjs';
 
 // Mock preview data for example.com URLs (used in development/fallback scenarios)
 function getMockPreviewData(url) {
