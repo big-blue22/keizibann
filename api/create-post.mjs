@@ -1,6 +1,7 @@
 // /api/create-post.mjs
 import { kv } from '@vercel/kv';
 import { isKvAvailable } from './utils/kv-utils.mjs';
+import { generatePreviewData } from './utils/preview-utils.mjs'; // プレビュー生成関数をインポート
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -190,6 +191,18 @@ export default async function handler(request, response) {
       return response.status(400).json({ message: '必須項目が不足しています。' });
     }
 
+    // --- URLプレビューの生成 ---
+    let previewData = null;
+    try {
+      console.log('URLプレビューを生成中...', url);
+      previewData = await generatePreviewData(url);
+      console.log('プレビュー生成成功');
+    } catch (error) {
+      console.error('プレビューの生成に失敗しました:', error.message);
+      // プレビューが失敗しても投稿は作成するが、エラーはログに残す
+    }
+    // --- ここまで ---
+
     // ラベルを自動生成（AIと既存ラベルを活用）
     let labels = [];
     try {
@@ -258,6 +271,7 @@ export default async function handler(request, response) {
       createdAt: new Date().toISOString(),
       viewCount: 0,
       commentCount: 0,
+      previewData: previewData // プレビューデータを追加
     };
 
     if (isKvAvailable()) {

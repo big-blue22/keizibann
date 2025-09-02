@@ -1,4 +1,3 @@
-import { kv } from '@vercel/kv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { lookup } from 'dns/promises';
@@ -42,7 +41,7 @@ async function isSafeUrl(url) {
   }
 }
 
-// Mock preview data for example.com URLs (used in development/fallback scenarios)
+// Mock preview data for example.com URLs
 function getMockPreviewData(url) {
   const mockData = {
     'https://example.com/ai-trends': {
@@ -77,47 +76,24 @@ function getMockPreviewData(url) {
   };
 }
 
-export default async function handler(request, response) {
-  if (request.method !== 'GET') {
-    return response.status(405).json({ error: 'GETメソッドのみ許可されています' });
-  }
 
-  const { url } = request.query;
-  console.log('プレビューリクエスト受信:', url);
-
-  if (!url || typeof url !== 'string') {
-    console.log('無効なURL:', url);
-    return response.status(400).json({ error: 'URLが指定されていません' });
-  }
-
-  // --- キャッシュロジック（KV認証情報がある場合のみ） ---
-  const useCache = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
-  const cacheKey = `preview:${url}`;
-
-  if (useCache) {
-    try {
-      const cachedData = await kv.get(cacheKey);
-      if (cachedData) {
-        console.log('キャッシュからプレビューデータを返します:', url);
-        return response.status(200).json(cachedData);
-      }
-    } catch (error) {
-      console.error('Vercel KVからのキャッシュ取得に失敗:', error);
-      // キャッシュエラーは処理を続行
-    }
-  }
-
+/**
+ * 指定されたURLのプレビューデータを生成します。
+ * @param {string} url プレビューを生成するURL
+ * @returns {Promise<object>} プレビューデータのオブジェクト
+ * @throws {Error} プレビューの生成に失敗した場合
+ */
+export async function generatePreviewData(url) {
   // Check if this is a mock URL (example.com)
   if (url.includes('example.com')) {
     console.log('モックURLを検出、モックデータを返します:', url);
-    const mockPreviewData = getMockPreviewData(url);
-    return response.status(200).json(mockPreviewData);
+    return getMockPreviewData(url);
   }
 
   // SSRF対策：URLの安全性を検証
   if (!(await isSafeUrl(url))) {
     console.log(`[SSRF] 安全でないURLのためリクエストをブロック: ${url}`);
-    return response.status(400).json({ error: '無効または安全でないURLが指定されました。' });
+    throw new Error('無効または安全でないURLが指定されました。');
   }
 
   try {
@@ -149,30 +125,16 @@ export default async function handler(request, response) {
     }
 
     console.log('プレビューデータ生成完了:', previewData);
-
-    // --- キャッシュに保存（KV認証情報がある場合のみ） ---
-    if (useCache) {
-      try {
-        // キャッシュの有効期限を1時間（3600秒）に設定
-        await kv.set(cacheKey, previewData, { ex: 3600 });
-        console.log('プレビューデータをキャッシュに保存しました:', url);
-      } catch (error) {
-        console.error('Vercel KVへのキャッシュ保存に失敗:', error);
-      }
-    }
-
-    // 4. JSON形式でプレビューデータを返す
-    return response.status(200).json(previewData);
+    return previewData;
 
   } catch (error) {
     console.error(`プレビューの取得に失敗しました: ${url}`, error.message);
-    // エラーの種類に応じて、より具体的なメッセージを返すことも可能です
-    let errorMessage = 'プレビューを生成できませんでした。';
+    // エラーの種類に応じて、より具体的なメッセージを組み立て直してスローする
     if (error.code === 'ECONNABORTED') {
-        errorMessage = 'ページの読み込みがタイムアウトしました。';
+        throw new Error('ページの読み込みがタイムアウトしました。');
     } else if (error.response) {
-        errorMessage = `サイトからエラーが返されました (ステータス: ${error.response.status})。`;
+        throw new Error(`サイトからエラーが返されました (ステータス: ${error.response.status})。`);
     }
-    return response.status(500).json({ error: errorMessage });
+    throw new Error('プレビューを生成できませんでした。');
   }
 }
