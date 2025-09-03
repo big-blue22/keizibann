@@ -267,39 +267,41 @@ const PostForm = ({ onPostAdded }) => {
   }, []);
 
 
-  const handleFetchTitle = async () => {
-    if (!url.trim()) return;
-    setStatus({ loading: true, error: null, success: 'タイトルを取得中...' });
-    try {
-      const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}&only=title`);
-      const data = await res.json();
-      if (res.ok && data.title) {
-        setSummary(data.title);
-        setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
-      } else {
-        setStatus({ loading: false, error: data.error || 'タイトルの自動取得に失敗しました。', success: null });
-      }
-    } catch (err) {
-      console.error('Title fetch error:', err);
-      setStatus({ loading: false, error: 'タイトルの自動取得中にエラーが発生しました。', success: null });
-    }
-  };
 
   const handleRefine = async () => {
-    if (!originalContent.trim()) return;
-    setStatus({ loading: true, error: null, success: null });
-    try {
-      const res = await fetch('/api/refine-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalContent }),
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによる推敲に失敗しました。'); }
-      const data = await res.json();
-      setSummary(data.refinedText);
-      setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
-    } catch (err) {
-      setStatus({ loading: false, error: err.message, success: null });
+    // 「元の投稿本文」に内容がある場合は、AIで要約
+    if (originalContent.trim()) {
+      setStatus({ loading: true, error: null, success: 'AIによる要約を実行中...' });
+      try {
+        const res = await fetch('/api/refine-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ originalContent }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({message: 'AIによる推敲に失敗しました。詳細エラー不明'})); throw new Error(err.message || 'AIによる推敲に失敗しました。'); }
+        const data = await res.json();
+        setSummary(data.refinedText);
+        setStatus({ loading: false, error: null, success: 'AIが内容を整えました。' });
+      } catch (err) {
+        setStatus({ loading: false, error: err.message, success: null });
+      }
+    }
+    // 「元の投稿本文」が空で、URLがある場合は、タイトルを取得
+    else if (url.trim()) {
+      setStatus({ loading: true, error: null, success: 'タイトルを取得中...' });
+      try {
+        const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}&only=title`);
+        const data = await res.json();
+        if (res.ok && data.title) {
+          setSummary(data.title);
+          setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
+        } else {
+          setStatus({ loading: false, error: data.error || 'タイトルの自動取得に失敗しました。', success: null });
+        }
+      } catch (err) {
+        console.error('Title fetch error:', err);
+        setStatus({ loading: false, error: 'タイトルの自動取得中にエラーが発生しました。', success: null });
+      }
     }
   };
 
@@ -352,19 +354,13 @@ const PostForm = ({ onPostAdded }) => {
             onChange: e => setUrl(e.target.value), 
             required: true, 
             className: "w-full p-2 bg-slate-700 rounded" 
-        }),
-        React.createElement('button', {
-            type: "button",
-            onClick: handleFetchTitle,
-            disabled: status.loading || !url.trim(),
-            className: "mt-2 px-4 py-1.5 bg-purple-600 text-white rounded disabled:opacity-50"
-        }, status.loading ? '取得中...' : 'タイトルを取得')
+        })
     ),
     // 原文入力
     React.createElement('div', null,
         React.createElement('label', { htmlFor: "originalContent" }, "元の投稿本文 (任意)"),
         React.createElement('textarea', { id: "originalContent", value: originalContent, onChange: e => setOriginalContent(e.target.value), rows: 3, className: "w-full p-2 bg-slate-700 rounded" }),
-        React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || !originalContent.trim(), className: "px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50" }, status.loading ? '処理中...' : 'AIに内容を整えてもらう')
+        React.createElement('button', { type: "button", onClick: handleRefine, disabled: status.loading || (!originalContent.trim() && !url.trim()), className: "px-4 py-1.5 bg-sky-600 text-white rounded disabled:opacity-50" }, status.loading ? '処理中...' : 'AI要約 / タイトル取得')
     ),
     // 共有内容入力
     React.createElement('div', null,
