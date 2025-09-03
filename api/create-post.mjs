@@ -187,8 +187,8 @@ export default async function handler(request, response) {
 
   try {
     const { url, summary, originalContent } = request.body;
-    if (!url || !summary) {
-      return response.status(400).json({ message: '必須項目が不足しています。' });
+    if (!url) {
+      return response.status(400).json({ message: 'URLは必須です。' });
     }
 
     // --- URLプレビューの生成 ---
@@ -210,10 +210,11 @@ export default async function handler(request, response) {
       const existingLabels = await getExistingLabels();
       console.log('既存ラベル:', existingLabels);
       
-      console.log('AIでラベルを生成中...');
-      const content = `タイトル: ${url}\n要約: ${summary}\n詳細: ${originalContent || ''}`;
-      const aiLabels = await generateLabelsWithAI(content, existingLabels);
       console.log('AI生成ラベル:', aiLabels);
+      
+      console.log('AIでラベルを生成中...');
+      const content = `タイトル: ${url}\n要約: ${summary || ''}\n詳細: ${originalContent || ''}`;
+      const aiLabels = await generateLabelsWithAI(content, existingLabels);
       
       if (aiLabels.length > 0) {
         labels = aiLabels;
