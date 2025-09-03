@@ -280,12 +280,12 @@ const PostForm = ({ onPostAdded }) => {
             setSummary(data.title);
             setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
           } else {
-            // 失敗してもエラーメッセージは出さず、ユーザー入力を妨げない
-            setStatus({ loading: false, error: null, success: null });
+            // 失敗した場合はユーザーにフィードバックを表示
+            setStatus({ loading: false, error: 'タイトルの自動取得に失敗しました。URLが正しいか、またはサイトが情報取得を許可しているか確認してください。', success: null });
           }
         } catch (err) {
           console.error('Title fetch error:', err);
-          setStatus({ loading: false, error: null, success: null }); // エラー時も静かに処理
+          setStatus({ loading: false, error: 'タイトルの自動取得中にエラーが発生しました。', success: null });
         }
       }
     };
@@ -320,6 +320,7 @@ const PostForm = ({ onPostAdded }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // summaryが空でも投稿できるように、urlのみをチェック
     if (!url.trim()) {
       setStatus({ loading: false, error: 'URLは必須です。', success: null });
       return;
