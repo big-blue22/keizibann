@@ -187,8 +187,8 @@ export default async function handler(request, response) {
 
   try {
     const { url, summary, originalContent } = request.body;
-    if (!url) {
-      return response.status(400).json({ message: 'URLは必須項目です。' });
+    if (!url || !summary) {
+      return response.status(400).json({ message: '必須項目が不足しています。' });
     }
 
     // --- URLプレビューの生成 ---

@@ -266,40 +266,6 @@ const PostForm = ({ onPostAdded }) => {
     };
   }, []);
 
-  // URLからタイトルを自動取得
-  useEffect(() => {
-    const fetchTitle = async () => {
-      // 簡単なURL形式のチェック & summaryが空の場合のみ
-      if (url && url.match(/^https?:\/\//) && summary.trim() === '') {
-        try {
-          // ユーザーにフィードバックを表示
-          setStatus({ loading: true, error: null, success: 'タイトルを取得中...' });
-          const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}&only=title`);
-          const data = await res.json();
-          if (res.ok && data.title) {
-            setSummary(data.title);
-            setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
-          } else {
-            // 失敗してもエラーメッセージは出さず、ユーザー入力を妨げない
-            setStatus({ loading: false, error: null, success: null });
-          }
-        } catch (err) {
-          console.error('Title fetch error:', err);
-          setStatus({ loading: false, error: null, success: null }); // エラー時も静かに処理
-        }
-      }
-    };
-
-    // ユーザーのタイピングが終わるのを待つ
-    const handler = setTimeout(() => {
-      fetchTitle();
-    }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [url]); // urlが変わるたびに実行
-
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
     setStatus({ loading: true, error: null, success: null });
@@ -320,8 +286,8 @@ const PostForm = ({ onPostAdded }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!url.trim()) {
-      setStatus({ loading: false, error: 'URLは必須です。', success: null });
+    if (!url.trim() || !summary.trim()) {
+      setStatus({ loading: false, error: 'URLと共有する内容は必須です。', success: null });
       return;
     }
     setStatus({ loading: true, error: null, success: null });
