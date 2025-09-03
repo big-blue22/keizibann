@@ -266,39 +266,24 @@ const PostForm = ({ onPostAdded }) => {
     };
   }, []);
 
-  // URLからタイトルを自動取得
-  useEffect(() => {
-    const fetchTitle = async () => {
-      // 簡単なURL形式のチェック & summaryが空の場合のみ
-      if (url && url.match(/^https?:\/\//) && summary.trim() === '') {
-        try {
-          // ユーザーにフィードバックを表示
-          setStatus({ loading: true, error: null, success: 'タイトルを取得中...' });
-          const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}&only=title`);
-          const data = await res.json();
-          if (res.ok && data.title) {
-            setSummary(data.title);
-            setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
-          } else {
-            // 失敗した場合はユーザーにフィードバックを表示
-            setStatus({ loading: false, error: 'タイトルの自動取得に失敗しました。URLが正しいか、またはサイトが情報取得を許可しているか確認してください。', success: null });
-          }
-        } catch (err) {
-          console.error('Title fetch error:', err);
-          setStatus({ loading: false, error: 'タイトルの自動取得中にエラーが発生しました。', success: null });
-        }
+
+  const handleFetchTitle = async () => {
+    if (!url.trim()) return;
+    setStatus({ loading: true, error: null, success: 'タイトルを取得中...' });
+    try {
+      const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}&only=title`);
+      const data = await res.json();
+      if (res.ok && data.title) {
+        setSummary(data.title);
+        setStatus({ loading: false, error: null, success: 'タイトルを自動入力しました。' });
+      } else {
+        setStatus({ loading: false, error: data.error || 'タイトルの自動取得に失敗しました。', success: null });
       }
-    };
-
-    // ユーザーのタイピングが終わるのを待つ
-    const handler = setTimeout(() => {
-      fetchTitle();
-    }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [url]); // urlが変わるたびに実行
+    } catch (err) {
+      console.error('Title fetch error:', err);
+      setStatus({ loading: false, error: 'タイトルの自動取得中にエラーが発生しました。', success: null });
+    }
+  };
 
   const handleRefine = async () => {
     if (!originalContent.trim()) return;
@@ -367,7 +352,13 @@ const PostForm = ({ onPostAdded }) => {
             onChange: e => setUrl(e.target.value), 
             required: true, 
             className: "w-full p-2 bg-slate-700 rounded" 
-        })
+        }),
+        React.createElement('button', {
+            type: "button",
+            onClick: handleFetchTitle,
+            disabled: status.loading || !url.trim(),
+            className: "mt-2 px-4 py-1.5 bg-purple-600 text-white rounded disabled:opacity-50"
+        }, status.loading ? '取得中...' : 'タイトルを取得')
     ),
     // 原文入力
     React.createElement('div', null,
