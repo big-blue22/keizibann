@@ -14,8 +14,8 @@ export default async function handler(request, response) {
     return response.status(405).json({ error: 'GETメソッドのみ許可されています' });
   }
 
-  const { url } = request.query;
-  console.log('プレビューリクエスト受信:', url);
+  const { url, only } = request.query;
+  console.log('プレビューリクエスト受信:', url, 'only:', only);
 
   if (!url || typeof url !== 'string') {
     console.log('無効なURL:', url);
@@ -30,6 +30,13 @@ export default async function handler(request, response) {
 
     // 2. CheerioでHTMLを解析
     const $ = cheerio.load(html);
+
+    // "only=title" クエリがある場合は、タイトルのみを返却
+    if (only === 'title') {
+      const title = $('title').first().text() || getMetatag('og:title') || 'タイトルなし';
+      console.log('タイトルのみを返却:', title);
+      return response.status(200).json({ title: title });
+    }
 
     // 3. OGPタグと他のフォールバック用タグから情報を抽出
     const getMetatag = (name) => $(`meta[property='${name}']`).attr('content') || $(`meta[name='${name}']`).attr('content');
