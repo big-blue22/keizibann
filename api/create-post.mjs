@@ -187,39 +187,23 @@ export default async function handler(request, response) {
 
   try {
     const { url, summary, originalContent } = request.body;
-    let postTitle = summary;
+    if (!url || !summary) {
+      return response.status(400).json({ message: '必須項目が不足しています。' });
+    }
+
+    // --- URLプレビューの生成 ---
     let previewData = null;
-
-    if (!url) {
-      return response.status(400).json({ message: 'URLは必須です。' });
+    try {
+      console.log('URLプレビューを生成中...', url);
+      previewData = await generatePreviewData(url);
+      console.log('プレビュー生成成功');
+    } catch (error) {
+      console.error('プレビューの生成に失敗しました:', error.message);
+      // プレビューが失敗しても投稿は作成するが、エラーはログに残す
     }
+    // --- ここまで ---
 
-    // summaryがない場合、URLからタイトルを取得
-    if (!postTitle) {
-      try {
-        console.log('URLプレビューを生成中...', url);
-        previewData = await generatePreviewData(url);
-        console.log('プレビュー生成成功');
-        if (!previewData.title || previewData.title === 'タイトルなし') {
-          return response.status(400).json({ message: 'URLから有効なタイトルを取得できませんでした。' });
-        }
-        postTitle = previewData.title;
-      } catch (error) {
-        console.error('プレビューの生成に失敗しました:', error.message);
-        return response.status(400).json({ message: `URLからタイトルを取得できませんでした。URLが正しいか確認してください。 (${error.message})` });
-      }
-    } else {
-      // summaryがある場合でもプレビューは取得を試みる（失敗しても続行）
-      try {
-        console.log('URLプレビューを生成中...', url);
-        previewData = await generatePreviewData(url);
-        console.log('プレビュー生成成功');
-      } catch (error) {
-        console.error('プレビューの生成に失敗しました（投稿は続行）:', error.message);
-      }
-    }
-
-    // ラベルを自動生成
+    // ラベルを自動生成（AIと既存ラベルを活用）
     let labels = [];
     try {
       console.log('既存ラベルを取得中...');
@@ -227,60 +211,77 @@ export default async function handler(request, response) {
       console.log('既存ラベル:', existingLabels);
       
       console.log('AIでラベルを生成中...');
-      const content = `タイトル: ${postTitle}\n詳細: ${originalContent || ''}`;
+      const content = `タイトル: ${url}\n要約: ${summary}\n詳細: ${originalContent || ''}`;
       const aiLabels = await generateLabelsWithAI(content, existingLabels);
       console.log('AI生成ラベル:', aiLabels);
       
       if (aiLabels.length > 0) {
         labels = aiLabels;
       } else {
+        // AIが失敗した場合のフォールバック（改良版キーワードマッチング）
         console.log('AI生成に失敗、フォールバックを使用');
         labels = await fallbackLabelGeneration(content, existingLabels);
       }
       
+      // AIモデル情報が含まれているかチェック（必須要件）
       const hasAiModel = labels.some(label => 
         /gpt|claude|gemini|llama|bert|chatgpt|openai|anthropic|google/i.test(label)
       );
       
       if (!hasAiModel) {
+        // 内容からAIモデルを検出
         const aiModelKeywords = {
-          'GPT-4': ['gpt-4', 'gpt4'], 'GPT-3.5': ['gpt-3.5', 'gpt3.5'], 'ChatGPT': ['chatgpt', 'chat gpt'],
-          'Claude': ['claude'], 'Gemini': ['gemini', 'bard'], 'LLaMA': ['llama'], 'BERT': ['bert']
+          'GPT-4': ['gpt-4', 'gpt4'],
+          'GPT-3.5': ['gpt-3.5', 'gpt3.5'],
+          'ChatGPT': ['chatgpt', 'chat gpt'],
+          'Claude': ['claude'],
+          'Gemini': ['gemini', 'bard'],
+          'LLaMA': ['llama'],
+          'BERT': ['bert']
         };
+        
         const contentLower = content.toLowerCase();
         for (const [modelName, keywords] of Object.entries(aiModelKeywords)) {
           if (keywords.some(keyword => contentLower.includes(keyword))) {
-            labels.unshift(modelName);
+            labels.unshift(modelName); // 先頭に追加
             break;
           }
         }
-        if (!labels.some(label => /gpt|claude|gemini|llama|bert|chatgpt|openai|anthropic|google|ai/i.test(label))) {
-          labels.unshift('AI');
+        
+        // それでもAIモデルが見つからない場合
+        if (!labels.some(label => 
+          /gpt|claude|gemini|llama|bert|chatgpt|openai|anthropic|google|ai/i.test(label)
+        )) {
+          labels.unshift('AI'); // 最低限のAIラベルを追加
         }
       }
+      
     } catch (error) {
       console.error('Label generation error:', error);
-      labels = ['AI', '技術情報'];
+      labels = ['AI', '技術情報']; // 安全なフォールバック
     }
 
-    console.log('Creating post with data:', { url, summary: postTitle, originalContent, labels });
+    console.log('Creating post with data:', { url, summary, originalContent, labels });
 
     const newPost = {
       id: `post_${Date.now()}`,
       url,
-      summary: postTitle,
+      summary,
       labels,
       createdAt: new Date().toISOString(),
       viewCount: 0,
       commentCount: 0,
-      previewData: previewData
+      previewData: previewData // プレビューデータを追加
     };
 
     if (isKvAvailable()) {
+      // 本番環境：Vercel KVを使用
+      // 確実にJSON文字列として保存
       const postJsonString = JSON.stringify(newPost);
       await kv.lpush('posts', postJsonString);
       console.log('KVに保存された投稿:', postJsonString);
     } else {
+      // 開発環境：ローカルファイルを使用
       const posts = await loadPostsLocal();
       posts.unshift(newPost);
       await savePostsLocal(posts);
