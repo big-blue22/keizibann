@@ -186,22 +186,42 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { url, summary, originalContent } = request.body;
-    if (!url || !summary) {
-      return response.status(400).json({ message: '必須項目が不足しています。' });
+    const { url, originalContent } = request.body;
+    let { summary } = request.body; // summaryをletで宣言
+
+    if (!url) {
+      return response.status(400).json({ message: 'URLは必須です。' });
     }
 
-    // --- URLプレビューの生成 ---
     let previewData = null;
-    try {
-      console.log('URLプレビューを生成中...', url);
-      previewData = await generatePreviewData(url);
-      console.log('プレビュー生成成功');
-    } catch (error) {
-      console.error('プレビューの生成に失敗しました:', error.message);
-      // プレビューが失敗しても投稿は作成するが、エラーはログに残す
+
+    // summaryが提供されていない、または空の場合、URLから情報を取得して生成
+    if (!summary || summary.trim() === '') {
+      try {
+        console.log('summaryがないため、URLからプレビューを生成します...', url);
+        previewData = await generatePreviewData(url);
+
+        const title = previewData.title || 'タイトルなし';
+        const description = previewData.description || '説明なし';
+        summary = `${title}\n\n${description}`; // summaryを上書き
+
+        console.log('プレビューからのsummary生成成功');
+      } catch (error) {
+        console.error('プレビューの生成に失敗しました:', error.message);
+        // ユーザーの要件に基づき、URLのみの場合はプレビュー取得失敗をエラーとする
+        return response.status(400).json({ message: `プレビューの生成に失敗しました。URLを確認してください。` });
+      }
+    } else {
+      // summaryが提供されている場合でも、プレビューは取得を試みる（失敗しても続行）
+      try {
+        console.log('URLプレビューを生成中（summaryあり）...', url);
+        previewData = await generatePreviewData(url);
+        console.log('プレビュー生成成功（summaryあり）');
+      } catch (error) {
+        console.error('プレビューの生成に失敗しましたが、処理を続行します:', error.message);
+        // プレビューデータはnullのまま
+      }
     }
-    // --- ここまで ---
 
     // ラベルを自動生成（AIと既存ラベルを活用）
     let labels = [];
@@ -211,7 +231,7 @@ export default async function handler(request, response) {
       console.log('既存ラベル:', existingLabels);
       
       console.log('AIでラベルを生成中...');
-      const content = `タイトル: ${url}\n要約: ${summary}\n詳細: ${originalContent || ''}`;
+      const content = `タイトル: ${previewData?.title || url}\n要約: ${summary}\n詳細: ${originalContent || ''}`;
       const aiLabels = await generateLabelsWithAI(content, existingLabels);
       console.log('AI生成ラベル:', aiLabels);
       
@@ -261,7 +281,7 @@ export default async function handler(request, response) {
       labels = ['AI', '技術情報']; // 安全なフォールバック
     }
 
-    console.log('Creating post with data:', { url, summary, originalContent, labels });
+    console.log('Creating post with data:', { url, summary, originalContent, labels, previewData });
 
     const newPost = {
       id: `post_${Date.now()}`,
