@@ -30,7 +30,10 @@ async function savePostsLocal(posts) {
 // 既存の投稿からラベルを取得する関数
 async function getExistingLabels() {
   try {
-    if (isKvAvailable()) {
+    const isVercelEnv = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+    const shouldUseKv = isKvAvailable() || isVercelEnv;
+    
+    if (shouldUseKv) {
       const posts = await kv.lrange('posts', 0, -1);
       const allLabels = new Set();
       
@@ -307,10 +310,26 @@ export default async function handler(request, response) {
     };
 
     console.log('STEP 5: 投稿保存処理開始...');
-    if (isKvAvailable()) {
+    
+    // Vercel環境では強制的にKVを使用（ローカルファイルは読み取り専用のため）
+    const isVercelEnv = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+    const shouldUseKv = isKvAvailable() || isVercelEnv;
+    
+    console.log('保存方法決定:', {
+      isKvAvailable: isKvAvailable(),
+      isVercelEnv: isVercelEnv,
+      shouldUseKv: shouldUseKv
+    });
+
+    if (shouldUseKv) {
       // 本番環境：Vercel KVを使用
       console.log('STEP 5a: KV環境を使用して投稿を保存...');
       try {
+        // KVが利用できない場合でもVercel環境なら強制的に試行
+        if (!isKvAvailable() && isVercelEnv) {
+          console.warn('⚠️ KV環境変数が不完全ですが、Vercel環境のため強制実行します');
+        }
+        
         // 確実にJSON文字列として保存
         const postJsonString = JSON.stringify(newPost);
         console.log('STEP 5a: KVに保存するデータ:', postJsonString);
@@ -319,6 +338,11 @@ export default async function handler(request, response) {
       } catch (kvError) {
         console.error('❌ STEP 5a: KV保存中にエラー:', kvError);
         console.error('❌ STEP 5a: KVエラースタック:', kvError.stack);
+        
+        // Vercel環境でKV保存に失敗した場合の対処
+        if (isVercelEnv) {
+          throw new Error(`KV保存に失敗しました。Vercel KVの設定を確認してください: ${kvError.message}`);
+        }
         throw kvError;
       }
     } else {
