@@ -186,6 +186,14 @@ export default async function handler(request, response) {
   }
 
   try {
+    console.log('=== CREATE POST START ===');
+    console.log('Environment check:');
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    console.log('- KV_REST_API_URL exists:', !!process.env.KV_REST_API_URL);
+    console.log('- KV_REST_API_TOKEN exists:', !!process.env.KV_REST_API_TOKEN);
+    console.log('- GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
+    console.log('- isKvAvailable():', isKvAvailable());
+    
     console.log('リクエストボディ:', JSON.stringify(request.body, null, 2));
     
     const { url, summary, originalContent } = request.body;
@@ -197,39 +205,52 @@ export default async function handler(request, response) {
     // --- URLプレビューの生成 ---
     let previewData = null;
     try {
-      console.log('URLプレビューを生成中...', url);
+      console.log('STEP 1: URLプレビューを生成中...', url);
       previewData = await generatePreviewData(url);
-      console.log('プレビュー生成成功:', previewData);
+      console.log('✅ STEP 1: プレビュー生成成功:', previewData);
     } catch (error) {
-      console.error('プレビューの生成に失敗しました:', error.message);
+      console.error('❌ STEP 1: プレビューの生成に失敗しました:', error.message);
+      console.error('❌ STEP 1: プレビューエラースタック:', error.stack);
       // プレビューが失敗しても投稿は作成するが、エラーはログに残す
-      previewData = {
-        title: url,
-        description: summary,
-        image: null,
-        siteName: new URL(url).hostname,
-        url: url
-      };
+      try {
+        previewData = {
+          title: url,
+          description: summary,
+          image: null,
+          siteName: new URL(url).hostname,
+          url: url
+        };
+      } catch (urlError) {
+        console.error('❌ STEP 1: URL parsing failed:', urlError);
+        previewData = {
+          title: url,
+          description: summary,
+          image: null,
+          siteName: 'unknown',
+          url: url
+        };
+      }
+      console.log('STEP 1: フォールバックプレビューを使用:', previewData);
     }
     // --- ここまで ---
 
     // ラベルを自動生成（AIと既存ラベルを活用）
     let labels = [];
     try {
-      console.log('既存ラベルを取得中...');
+      console.log('STEP 2: 既存ラベルを取得中...');
       const existingLabels = await getExistingLabels();
-      console.log('既存ラベル:', existingLabels);
+      console.log('✅ STEP 2: 既存ラベル:', existingLabels);
       
-      console.log('AIでラベルを生成中...');
+      console.log('STEP 3: AIでラベルを生成中...');
       const content = `タイトル: ${url}\n要約: ${summary}\n詳細: ${originalContent || ''}`;
       const aiLabels = await generateLabelsWithAI(content, existingLabels);
-      console.log('AI生成ラベル:', aiLabels);
+      console.log('✅ STEP 3: AI生成ラベル:', aiLabels);
       
       if (aiLabels.length > 0) {
         labels = aiLabels;
       } else {
         // AIが失敗した場合のフォールバック（改良版キーワードマッチング）
-        console.log('AI生成に失敗、フォールバックを使用');
+        console.log('STEP 3: AI生成に失敗、フォールバックを使用');
         labels = await fallbackLabelGeneration(content, existingLabels);
       }
       
@@ -267,11 +288,12 @@ export default async function handler(request, response) {
       }
       
     } catch (error) {
-      console.error('Label generation error:', error);
+      console.error('❌ STEP 2-3: Label generation error:', error);
+      console.error('❌ STEP 2-3: Label generation error stack:', error.stack);
       labels = ['AI', '技術情報']; // 安全なフォールバック
     }
 
-    console.log('Creating post with data:', { url, summary, originalContent, labels, previewData });
+    console.log('STEP 4: Creating post with data:', { url, summary, originalContent, labels, previewData });
 
     const newPost = {
       id: `post_${Date.now()}`,
@@ -284,30 +306,48 @@ export default async function handler(request, response) {
       previewData: previewData // プレビューデータを追加
     };
 
+    console.log('STEP 5: 投稿保存処理開始...');
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
-      console.log('KV環境を使用して投稿を保存...');
-      // 確実にJSON文字列として保存
-      const postJsonString = JSON.stringify(newPost);
-      await kv.lpush('posts', postJsonString);
-      console.log('KVに保存された投稿:', postJsonString);
+      console.log('STEP 5a: KV環境を使用して投稿を保存...');
+      try {
+        // 確実にJSON文字列として保存
+        const postJsonString = JSON.stringify(newPost);
+        console.log('STEP 5a: KVに保存するデータ:', postJsonString);
+        const kvResult = await kv.lpush('posts', postJsonString);
+        console.log('✅ STEP 5a: KVに保存完了。結果:', kvResult);
+      } catch (kvError) {
+        console.error('❌ STEP 5a: KV保存中にエラー:', kvError);
+        console.error('❌ STEP 5a: KVエラースタック:', kvError.stack);
+        throw kvError;
+      }
     } else {
       // 開発環境：ローカルファイルを使用
-      console.log('ローカルファイルを使用して投稿を保存...');
-      const posts = await loadPostsLocal();
-      posts.unshift(newPost);
-      await savePostsLocal(posts);
-      console.log('ローカルファイルに保存された投稿:', newPost);
+      console.log('STEP 5b: ローカルファイルを使用して投稿を保存...');
+      try {
+        const posts = await loadPostsLocal();
+        posts.unshift(newPost);
+        await savePostsLocal(posts);
+        console.log('✅ STEP 5b: ローカルファイルに保存完了');
+      } catch (localError) {
+        console.error('❌ STEP 5b: ローカル保存中にエラー:', localError);
+        console.error('❌ STEP 5b: ローカルエラースタック:', localError.stack);
+        throw localError;
+      }
     }
 
-    console.log('投稿作成完了:', newPost.id);
+    console.log('✅ STEP 6: 投稿作成完了:', newPost.id);
+    console.log('=== CREATE POST END ===');
     return response.status(200).json({ success: true, post: newPost });
   } catch (error) {
-    console.error('Error creating post:', error);
-    console.error('Error stack:', error.stack);
+    console.error('❌ CRITICAL ERROR in create-post:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     return response.status(500).json({ 
       message: '投稿の保存中にエラーが発生しました。', 
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      stack: error.stack
     });
   }
 }
