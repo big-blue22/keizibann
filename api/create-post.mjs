@@ -248,19 +248,8 @@ export default async function handler(request, response) {
     console.log('Creating post with data:', newPost);
 
     try {
-      console.log('--- DIAGNOSTIC LOG ---');
-      console.log('Preparing to save post. Full object:');
-      console.log(JSON.stringify(newPost, null, 2));
-      console.log('Checking types of newPost properties:');
-      for (const key in newPost) {
-        console.log(`- ${key}: ${typeof newPost[key]}`);
-      }
-      const postJsonString = JSON.stringify(newPost);
-      console.log('Stringified JSON to be sent:');
-      console.log(postJsonString);
-      console.log('--- END DIAGNOSTIC LOG ---');
-
       if (isKvAvailable()) {
+        const postJsonString = JSON.stringify(newPost);
         await kv.lpush('posts', postJsonString);
         console.log('KVに保存された投稿:', postJsonString);
       } else {
