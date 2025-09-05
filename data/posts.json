@@ -1,5 +1,24 @@
 [
   {
+    "id": "post_1757072796921",
+    "url": "https://example.com/ai-trends",
+    "summary": "AIの最新技術について解説した記事です。GPT-4の新機能やClaude-3の性能比較、Geminiの利用方法などが詳しく説明されています。",
+    "labels": [
+      "Gemini",
+      "AIエージェント"
+    ],
+    "createdAt": "2025-09-05T11:46:36.921Z",
+    "viewCount": 0,
+    "commentCount": 0,
+    "previewData": {
+      "title": "AI技術の最新トレンド",
+      "description": "AI技術の最新トレンドについて詳しく解説している記事です。",
+      "image": "https://via.placeholder.com/600x315/6366f1/ffffff?text=AI+Trends",
+      "siteName": "Example Tech Blog",
+      "url": "https://example.com/ai-trends"
+    }
+  },
+  {
     "id": "post_1750932805991",
     "url": "https://x.com/genspark_japan/status/1938175412863164522",
     "title": "Gensparkの進化可能性",

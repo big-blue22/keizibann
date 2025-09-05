@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import getPostsHandler from './api/get-posts.mjs';
-import previewHandler from './api/preview.mjs';
+import createPostHandler from './api/create-post.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -16,8 +16,23 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API ルート - 実際のAPIハンドラーを使用
-app.get('/api/get-posts', getPostsHandler);
-app.get('/api/preview', previewHandler);
+app.get('/api/get-posts', async (req, res) => {
+  try {
+    await getPostsHandler(req, res);
+  } catch (error) {
+    console.error('get-posts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/create-post', async (req, res) => {
+  try {
+    await createPostHandler(req, res);
+  } catch (error) {
+    console.error('create-post error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // その他のAPIルートはダミーレスポンス
 app.post('/api/increment-view-count', (req, res) => {

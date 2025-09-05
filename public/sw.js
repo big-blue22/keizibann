@@ -252,10 +252,13 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then(response => {
           // ネットワークから正常に取得できたら、キャッシュを更新してレスポンスを返す
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseToCache);
-          });
+          const url = new URL(event.request.url);
+          if (url.protocol === 'http:' || url.protocol === 'https:') {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
           return response;
         })
         .catch(() => {
@@ -278,7 +281,10 @@ self.addEventListener('fetch', (event) => {
         // キャッシュになければネットワークから取得
         return fetch(event.request).then((response) => {
           // レスポンスが有効な場合のみキャッシュに保存
-          if (response && response.status === 200 && response.type === 'basic') {
+          // chrome-extension スキームやその他のスキームを除外
+          const url = new URL(event.request.url);
+          if (response && response.status === 200 && response.type === 'basic' && 
+              (url.protocol === 'http:' || url.protocol === 'https:')) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);

@@ -186,8 +186,11 @@ export default async function handler(request, response) {
   }
 
   try {
+    console.log('リクエストボディ:', JSON.stringify(request.body, null, 2));
+    
     const { url, summary, originalContent } = request.body;
     if (!url || !summary) {
+      console.error('必須項目が不足:', { url, summary });
       return response.status(400).json({ message: '必須項目が不足しています。' });
     }
 
@@ -196,10 +199,17 @@ export default async function handler(request, response) {
     try {
       console.log('URLプレビューを生成中...', url);
       previewData = await generatePreviewData(url);
-      console.log('プレビュー生成成功');
+      console.log('プレビュー生成成功:', previewData);
     } catch (error) {
       console.error('プレビューの生成に失敗しました:', error.message);
       // プレビューが失敗しても投稿は作成するが、エラーはログに残す
+      previewData = {
+        title: url,
+        description: summary,
+        image: null,
+        siteName: new URL(url).hostname,
+        url: url
+      };
     }
     // --- ここまで ---
 
@@ -261,7 +271,7 @@ export default async function handler(request, response) {
       labels = ['AI', '技術情報']; // 安全なフォールバック
     }
 
-    console.log('Creating post with data:', { url, summary, originalContent, labels });
+    console.log('Creating post with data:', { url, summary, originalContent, labels, previewData });
 
     const newPost = {
       id: `post_${Date.now()}`,
@@ -276,20 +286,28 @@ export default async function handler(request, response) {
 
     if (isKvAvailable()) {
       // 本番環境：Vercel KVを使用
+      console.log('KV環境を使用して投稿を保存...');
       // 確実にJSON文字列として保存
       const postJsonString = JSON.stringify(newPost);
       await kv.lpush('posts', postJsonString);
       console.log('KVに保存された投稿:', postJsonString);
     } else {
       // 開発環境：ローカルファイルを使用
+      console.log('ローカルファイルを使用して投稿を保存...');
       const posts = await loadPostsLocal();
       posts.unshift(newPost);
       await savePostsLocal(posts);
+      console.log('ローカルファイルに保存された投稿:', newPost);
     }
 
+    console.log('投稿作成完了:', newPost.id);
     return response.status(200).json({ success: true, post: newPost });
   } catch (error) {
     console.error('Error creating post:', error);
-    return response.status(500).json({ message: '投稿の保存中にエラーが発生しました。' });
+    console.error('Error stack:', error.stack);
+    return response.status(500).json({ 
+      message: '投稿の保存中にエラーが発生しました。', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 }
