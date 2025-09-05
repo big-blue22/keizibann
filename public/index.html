@@ -116,17 +116,37 @@ const Tag = ({ label }) => React.createElement('span', { className: "px-3 py-1 t
 
 // URLプレビューコンポーネント
 const UrlPreview = ({ data, onClear }) => {
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+    
     if (!data) return null;
+    
+    const handleImageError = (e) => {
+        console.log('Preview image failed to load:', data.image);
+        setImageError(true);
+        setImageLoading(false);
+    };
+    
+    const handleImageLoad = () => {
+        setImageLoading(false);
+    };
     
     return React.createElement('div', { className: 'bg-slate-700/50 rounded-lg p-4 border border-slate-600' },
         data.title && React.createElement('h4', { className: 'font-semibold text-slate-200 mb-2 line-clamp-2' }, data.title),
         data.description && React.createElement('p', { className: 'text-sm text-slate-400 mb-3' }, data.description),
-        data.image && React.createElement('img', { 
-            src: data.image, 
-            alt: data.title || 'Preview image',
-            className: 'w-full h-32 object-cover rounded mb-3',
-            onError: (e) => { e.target.style.display = 'none'; }
-        }),
+        data.image && !imageError && React.createElement('div', { className: 'relative mb-3' },
+            imageLoading && React.createElement('div', { className: 'w-full h-32 bg-slate-600 rounded flex items-center justify-center' },
+                React.createElement(LoadingSpinner, { size: 'sm' })
+            ),
+            React.createElement('img', { 
+                src: data.image, 
+                alt: data.title || 'Preview image',
+                className: `w-full h-32 object-cover rounded ${imageLoading ? 'opacity-0' : 'opacity-100'}`,
+                onError: handleImageError,
+                onLoad: handleImageLoad,
+                loading: 'lazy'
+            })
+        ),
         React.createElement('div', { className: 'flex justify-between items-center' },
             data.siteName && React.createElement('span', { className: 'text-xs text-slate-500' }, data.siteName),
             onClear && React.createElement('button', {
@@ -368,10 +388,38 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [newCommentContent, setNewCommentContent] = useState('');
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
     const [currentPreviewData, setCurrentPreviewData] = useState(post.previewData);
+    const [previewGenerating, setPreviewGenerating] = useState(false);
 
     useEffect(() => {
         setCurrentPreviewData(post.previewData);
     }, [post.previewData]);
+
+    // プレビュー生成機能
+    const generatePreview = async () => {
+        setPreviewGenerating(true);
+        try {
+            const response = await fetch('/api/generate-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId: post.id, url: post.url }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setCurrentPreviewData(result.previewData);
+                // 親コンポーネントにも変更を通知
+                if (onPostUpdated) {
+                    onPostUpdated({ ...post, previewData: result.previewData });
+                }
+            } else {
+                console.error('プレビュー生成に失敗:', response.status);
+            }
+        } catch (error) {
+            console.error('プレビュー生成エラー:', error);
+        } finally {
+            setPreviewGenerating(false);
+        }
+    };
 
     // 閲覧数をインクリメント（URLクリック時のみ）
     const incrementViewCount = async () => {
@@ -515,6 +563,18 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
                     data: currentPreviewData,
                     onClear: () => setCurrentPreviewData(null)
                 })
+            )
+        ),
+
+        // プレビューがない場合の生成ボタン
+        !currentPreviewData && React.createElement('div', { className: "my-3" },
+            React.createElement('button', {
+                onClick: generatePreview,
+                disabled: previewGenerating,
+                className: "px-3 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+            }, 
+                previewGenerating && React.createElement(LoadingSpinner, { size: 'sm' }),
+                previewGenerating ? 'プレビュー生成中...' : 'サイトプレビューを生成'
             )
         ),
         
