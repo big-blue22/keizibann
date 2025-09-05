@@ -308,9 +308,15 @@ const PostForm = ({ onPostAdded }) => {
       const postRes = await fetch('/api/create-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, summary, labels }),
+        body: JSON.stringify({ url, summary, originalContent, labels }),
       });
-      if (!postRes.ok) { const err = await postRes.json().catch(() => ({message: '投稿の保存に失敗しました。詳細エラー不明'})); throw new Error(err.message || '投稿の保存に失敗しました。'); }
+      if (!postRes.ok) { 
+        const err = await postRes.json().catch(() => ({message: '投稿の保存に失敗しました。詳細エラー不明'})); 
+        console.error('Create post error details:', err);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+        throw new Error(`投稿の保存に失敗: ${err.message}${err.stack ? '\n' + err.stack : ''}`); 
+      }
       const { post } = await postRes.json();
 
       onPostAdded(post);

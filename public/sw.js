@@ -291,6 +291,24 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return response;
+        }).catch((error) => {
+          console.error('Fetch failed for:', event.request.url, error);
+          // フェッチが失敗した場合はキャッシュから返すか、空のレスポンスを返す
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // 画像などのリソースの場合は透明な1x1pxの画像を返す
+            if (event.request.destination === 'image') {
+              return new Response('', { 
+                status: 200, 
+                statusText: 'OK', 
+                headers: new Headers({ 'Content-Type': 'image/png' })
+              });
+            }
+            // その他の場合は404を返す
+            return new Response('Not Found', { status: 404 });
+          });
         });
       })
   );
