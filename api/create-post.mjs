@@ -294,22 +294,31 @@ export default async function handler(request, response) {
       previewData: previewData // プレビューデータを追加
     };
 
-    if (isKvAvailable()) {
-      // 本番環境：Vercel KVを使用
-      // 確実にJSON文字列として保存
-      const postJsonString = JSON.stringify(newPost);
-      await kv.lpush('posts', postJsonString);
-      console.log('KVに保存された投稿:', postJsonString);
-    } else {
-      // 開発環境：ローカルファイルを使用
-      const posts = await loadPostsLocal();
-      posts.unshift(newPost);
-      await savePostsLocal(posts);
+    try {
+      if (isKvAvailable()) {
+        // 本番環境：Vercel KVを使用
+        // 確実にJSON文字列として保存
+        const postJsonString = JSON.stringify(newPost);
+        await kv.lpush('posts', postJsonString);
+        console.log('KVに保存された投稿:', postJsonString);
+      } else {
+        // 開発環境：ローカルファイルを使用
+        const posts = await loadPostsLocal();
+        posts.unshift(newPost);
+        await savePostsLocal(posts);
+        console.log('ローカルファイルに投稿を保存しました。');
+      }
+    } catch (dbError) {
+      console.error('データベース保存エラー:', dbError);
+      throw new Error('データベースへの保存に失敗しました。KVストアの接続設定などを確認してください。');
     }
 
     return response.status(200).json({ success: true, post: newPost });
   } catch (error) {
     console.error('Error creating post:', error);
-    return response.status(500).json({ message: '投稿の保存中にエラーが発生しました。' });
+    const message = error.message.includes('データベース')
+      ? error.message
+      : '投稿の保存中にエラーが発生しました。';
+    return response.status(500).json({ message });
   }
 }
