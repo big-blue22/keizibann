@@ -356,28 +356,43 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
     const [comments, setComments] = useState([]);
     const [newCommentContent, setNewCommentContent] = useState('');
     const [commentStatus, setCommentStatus] = useState({ loading: false, error: null });
-    const [previewData, setPreviewData] = useState(null);
-    const [previewLoading, setPreviewLoading] = useState(false);
+    const [currentPreviewData, setCurrentPreviewData] = useState(post.previewData);
+    const [previewGenerating, setPreviewGenerating] = useState(false);
 
-    // プレビューを自動的に取得
     useEffect(() => {
-        const fetchPreview = async () => {
-            if (!post.url) return;
-            setPreviewLoading(true);
-            try {
-                const res = await fetch(`/api/preview?url=${encodeURIComponent(post.url)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setPreviewData(data);
+        setCurrentPreviewData(post.previewData);
+    }, [post.previewData]);
+
+    // プレビュー生成機能
+    const generatePreview = async () => {
+        setPreviewGenerating(true);
+        try {
+            const response = await fetch('/api/posts', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    postId: post.id, 
+                    url: post.url, 
+                    action: 'generate-preview' 
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setCurrentPreviewData(result.previewData);
+                // 親コンポーネントにも変更を通知
+                if (onPostUpdated) {
+                    onPostUpdated({ ...post, previewData: result.previewData });
                 }
-            } catch (err) {
-                console.error('Preview fetch error:', err);
-            } finally {
-                setPreviewLoading(false);
+            } else {
+                console.error('プレビュー生成に失敗:', response.status);
             }
-        };
-        fetchPreview();
-    }, [post.url]);
+        } catch (error) {
+            console.error('プレビュー生成エラー:', error);
+        } finally {
+            setPreviewGenerating(false);
+        }
+    };
 
     // 閲覧数をインクリメント（URLクリック時のみ）
     const incrementViewCount = async () => {
@@ -515,16 +530,24 @@ const PostCard = ({ post, isAdmin, onDelete, onPostUpdated }) => {
         React.createElement('p', { className: "text-slate-300 my-2 whitespace-pre-wrap" }, post.summary),
         
         // プレビュー表示エリア（常時表示）
-        React.createElement('div', { className: "my-3" },
-            previewLoading && React.createElement('div', { className: 'flex items-center justify-center p-3 bg-slate-700/20 rounded border-l-4 border-purple-500 pl-4' },
-                React.createElement(LoadingSpinner, { size: 'sm' }),
-                React.createElement('span', { className: 'ml-2 text-sm text-slate-400' }, 'プレビュー読み込み中...')
-            ),
-            !previewLoading && previewData && React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
-                React.createElement(UrlPreview, { 
-                    data: previewData, 
-                    onClear: () => setPreviewData(null)
+        currentPreviewData && React.createElement('div', { className: "my-3" },
+            React.createElement('div', { className: 'border-l-4 border-purple-500 pl-4' },
+                React.createElement(UrlPreview, {
+                    data: currentPreviewData,
+                    onClear: () => setCurrentPreviewData(null)
                 })
+            )
+        ),
+
+        // プレビューがない場合の生成ボタン
+        !currentPreviewData && React.createElement('div', { className: "my-3" },
+            React.createElement('button', {
+                onClick: generatePreview,
+                disabled: previewGenerating,
+                className: "px-3 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+            }, 
+                previewGenerating && React.createElement(LoadingSpinner, { size: 'sm' }),
+                previewGenerating ? 'プレビュー生成中...' : 'サイトプレビューを生成'
             )
         ),
         
